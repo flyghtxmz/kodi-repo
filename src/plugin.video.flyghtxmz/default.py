@@ -120,7 +120,10 @@ def show_recent_detail(identifier, media):
 
 
 def open_recent_in_elementum(identifier):
-    """Abre a pesquisa do Elementum com o título do filme no catálogo."""
+    """Abre a pesquisa do Elementum usando apenas o título do filme.
+
+    Não requer Prowlarr nem serviço debrid configurado.
+    """
     from recent import detail
     finish()
     if elementum_addon() is None:
