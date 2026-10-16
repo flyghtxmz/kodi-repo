@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="repository.flyghtxmz" name="Felipe Addons - Repositório" version="1.0.0" provider-name="flyghtxmz">
+<addon id="repository.flyghtxmz" name="Felipe Addons - Repositório" version="1.0.1" provider-name="flyghtxmz">
+    <requires>
+        <import addon="xbmc.addon" version="12.0.0" />
+    </requires>
     <extension point="xbmc.addon.repository">
         <dir>
             <info compressed="false">https://flyghtxmz.github.io/kodi-repo/addons.xml</info>
             <checksum>https://flyghtxmz.github.io/kodi-repo/addons.xml.md5</checksum>
             <datadir zip="true">https://flyghtxmz.github.io/kodi-repo/</datadir>
+            <hashes>false</hashes>
         </dir>
     </extension>
     <extension point="xbmc.addon.metadata">
+        <summary lang="en_GB">Felipe Addons repository for Kodi</summary>
+        <description lang="en_GB">Install and update authorized video addons for Kodi.</description>
         <summary lang="pt_BR">Instale e atualize addons de Felipe pelo Kodi</summary>
         <description lang="pt_BR">Repositório independente para addons de vídeos e outros projetos futuros.</description>
         <platform>all</platform>

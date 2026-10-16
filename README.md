@@ -2,7 +2,7 @@
 
 Fonte Kodi no GitHub Pages: https://flyghtxmz.github.io/kodi-repo/
 
-No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.0.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
+No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.1.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
 
 ## Felipe Vídeos 1.1.0 (Kodi 21.2 Omega)
 
@@ -18,3 +18,7 @@ No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip f
 ## Manutenção
 
 Rode `python tools/build_repo.py` para gerar ZIPs, `addons.xml` e `addons.xml.md5`, e `python -m unittest discover -s tests -v` para os testes. O workflow `Publish Kodi addon packages` recompila e publica os artefatos a cada alteração do código-fonte.
+
+## Diagnóstico de conectividade (Kodi Omega)
+
+O instalador do repositório 1.0.1 inclui a dependência `xbmc.addon` e declara `<hashes>false</hashes>`. Se o Kodi mostrar **Could not connect to repository**, reinstale o ZIP 1.0.1 e use o comando **Check for updates** no menu de contexto do repositório. Para investigar erros persistentes, verifique a conectividade do Kodi com `addons.xml` e envie o `kodi.log` com o erro de `CRepository`/TLS.

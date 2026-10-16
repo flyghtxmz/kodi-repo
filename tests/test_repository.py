@@ -40,8 +40,14 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(directory.findtext("checksum"), BASE_URL + "addons.xml.md5")
         self.assertEqual(directory.findtext("datadir"), BASE_URL)
         self.assertEqual(directory.find("datadir").attrib["zip"], "true")
-        self.assertTrue((ROOT / "repository.flyghtxmz-1.0.0.zip").exists())
-        self.assertIn('href="repository.flyghtxmz-1.0.0.zip"', (ROOT / "index.html").read_text())
+        version = manifest.getroot().attrib["version"]
+        filename = f"repository.flyghtxmz-{version}.zip"
+        self.assertTrue((ROOT / filename).exists())
+        self.assertIn(f'href="{filename}"', (ROOT / "index.html").read_text())
+        self.assertEqual(directory.findtext("hashes"), "false")
+        self.assertEqual(manifest.findtext("./requires/import[@addon='xbmc.addon']/@version"), None) if False else None
+        self.assertEqual(manifest.find("./requires/import[@addon='xbmc.addon']").attrib["version"], "12.0.0")
+        self.assertIsNotNone(manifest.find("./extension[@point='xbmc.addon.metadata']/summary[@lang='en_GB']"))
 
     def test_python_syntax(self):
         for file in (ROOT / "src").rglob("*.py"):
