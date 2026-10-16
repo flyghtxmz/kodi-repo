@@ -1,0 +1,34 @@
+name: Probe official open movie streams
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/open-movie-probe.yml"]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe official Blender and sample movie URLs
+        run: |
+          python - <<'PY'
+          import urllib.request, urllib.error
+          urls = [
+            "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "https://download.blender.org/ED/elephantsdream-720-h264-st-aac.mov",
+            "https://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_h264.mov",
+            "https://download.blender.org/durian/movies/sintel-2048-surround.mp4",
+            "https://download.blender.org/mango/TearsOfSteel_720p.mp4",
+            "https://archive.org/download/BigBuckBunny_124/Content/big_buck_bunny_720p_surround.mp4",
+          ]
+          for url in urls:
+            for method in ("HEAD", "GET"):
+              headers={"User-Agent":"Mozilla/5.0 (Kodi Playback)", "Range":"bytes=0-63"} if method=="GET" else {"User-Agent":"Mozilla/5.0"}
+              try:
+                req=urllib.request.Request(url,method=method,headers=headers)
+                with urllib.request.urlopen(req,timeout=12) as r:
+                  buf=r.read(64) if method=="GET" else b""
+                  print("PROBE_OK",r.status,method,url,"type",r.headers.get("Content-Type"),"size",r.headers.get("Content-Length"),"read",len(buf))
+              except Exception as e:
+                print("PROBE_ERR",method,url,repr(e))
+          print("PROBES_DONE")
+          PY
