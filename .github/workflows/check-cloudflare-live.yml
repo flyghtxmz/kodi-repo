@@ -1,0 +1,49 @@
+name: Check Live Felipe Cloudflare Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/kodi-sources/endpoint.json'
+      - '.github/workflows/check-cloudflare-live.yml'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deployed Worker endpoints
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          registry = json.load(open("cloudflare/kodi-sources/endpoint.json", encoding="utf-8"))
+          base = registry.get("endpoint", "").strip().rstrip("/")
+          assert base.startswith("https://") and base.endswith(".workers.dev"), "Worker URL missing"
+          query = urllib.parse.urlencode({
+              "imdb": "tt1254207", "title": "Big Buck Bunny", "year": "2008"
+          })
+          for path in ("/health", "/v1/sources?" + query):
+              request = urllib.request.Request(base + path, headers={
+                  "Accept": "application/json", "User-Agent": "FelipeVideosKodiCheck/1.0"
+              })
+              try:
+                  with urllib.request.urlopen(request, timeout=18) as response:
+                      status = response.status
+                      body = response.read(800).decode("utf-8", "replace")
+              except urllib.error.HTTPError as exc:
+                  status = exc.code
+                  body = exc.read(800).decode("utf-8", "replace")
+              print(path.split("?")[0], "HTTP", status, "response:", body[:400])
+              if path == "/health":
+                  assert status == 200, "Health check failed"
+              else:
+                  assert status in (200, 502), (
+                      "Worker still requires a token, is misconfigured or unreachable"
+                  )
+          PY
