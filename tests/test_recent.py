@@ -23,6 +23,25 @@ class RecentCatalogTests(unittest.TestCase):
         self.assertEqual(REC._parts("series_new", year=2026),
                          ("series", "year", "genre=2026"))
 
+    def test_additional_categories_use_official_cinemeta_genres(self):
+        self.assertEqual(REC._parts("movies_rating"),
+                         ("movie", "imdbRating", ""))
+        self.assertEqual(REC._parts("series_rating"),
+                         ("series", "imdbRating", ""))
+        self.assertEqual(REC._parts("movies_genre_action"),
+                         ("movie", "top", "genre=Action"))
+        self.assertEqual(REC._parts("movies_genre_scifi"),
+                         ("movie", "top", "genre=Sci-Fi"))
+        self.assertEqual(REC._parts("series_genre_reality"),
+                         ("series", "top", "genre=Reality-TV"))
+        self.assertIn("imdbRating", REC._url("series", "imdbRating", ""))
+        self.assertIn("genre=Action", REC._url("movie", "top", "genre=Action"))
+        with self.assertRaises(ValueError):
+            REC._parts("movies_genre_reality")
+        with self.assertRaises(ValueError):
+            REC._parts("series_genre_nonexistent")
+        self.assertGreaterEqual(len(REC.GENRE_CATEGORIES), 30)
+
     def test_validates_imdb_id_and_source(self):
         self.assertEqual(REC.validate_id("tt1234567"), "tt1234567")
         for invalid in ("../tt123456", "xx123456", "tt12", "tt1234567?x=1"):
