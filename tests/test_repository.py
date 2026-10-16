@@ -45,7 +45,6 @@ class RepositoryTests(unittest.TestCase):
         self.assertTrue((ROOT / filename).exists())
         self.assertIn(f'href="{filename}"', (ROOT / "index.html").read_text())
         self.assertEqual(directory.findtext("hashes"), "false")
-        self.assertEqual(manifest.findtext("./requires/import[@addon='xbmc.addon']/@version"), None) if False else None
         self.assertEqual(manifest.find("./requires/import[@addon='xbmc.addon']").attrib["version"], "12.0.0")
         self.assertIsNotNone(manifest.find("./extension[@point='xbmc.addon.metadata']/summary[@lang='en_GB']"))
 
