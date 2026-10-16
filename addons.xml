@@ -16,7 +16,7 @@
       <source>https://github.com/flyghtxmz/kodi-repo</source>
     </extension>
   </addon>
-  <addon id="repository.flyghtxmz" name="Felipe Addons - Repositório" version="1.0.1" provider-name="flyghtxmz">
+  <addon id="repository.flyghtxmz" name="Felipe Addons - Repositório" version="1.0.2" provider-name="flyghtxmz">
     <requires>
       <import addon="xbmc.addon" version="12.0.0" />
     </requires>
