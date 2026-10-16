@@ -49,14 +49,20 @@ class CatalogTests(unittest.TestCase):
         self.assertTrue(more)
 
     def test_featured_open_movies_have_auto_resolved_urls(self):
-        with patch.object(CAT, "fetch_json", side_effect=AssertionError("Featured must be local")):
+        with patch.object(CAT, "fetch_json", side_effect=AssertionError("Featured list must be local")):
             items, next_page = CAT.search("destaques")
-            self.assertEqual(len(items), 4)
+            self.assertEqual(len(items), 5)
             self.assertFalse(next_page)
             self.assertEqual(items[0]["title"], "Big Buck Bunny")
+        fake_metadata = {"metadata": {
+            "title": "Big Buck Bunny",
+            "licenseurl": "https://creativecommons.org/licenses/by/3.0/",
+        }, "files": [{"name": "movie_720p.mp4", "size": "70000000"}]}
+        with patch.object(CAT, "fetch_json", return_value=fake_metadata):
             movie = CAT.playback(items[0]["identifier"])
-            self.assertTrue(movie["url"].endswith("BigBuckBunny.mp4"))
-            self.assertTrue(CAT.open_license(movie["license"]))
+        self.assertTrue(movie["url"].endswith("/movie_720p.mp4"))
+        self.assertIn("/big-buck-bunny-720p-h-264/", movie["url"])
+        self.assertTrue(CAT.open_license(movie["license"]))
 
     def test_playback_autoselects_compatible_file(self):
         item = {"metadata": {

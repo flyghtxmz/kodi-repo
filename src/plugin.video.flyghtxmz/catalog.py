@@ -39,31 +39,31 @@ FILTERS = {
 }
 
 
-GOOGLE_SAMPLES = "https://storage.googleapis.com/gtv-videos-bucket/sample/"
 OPEN_MOVIES = {
     "openmovie.BigBuckBunny": {
-        "title": "Big Buck Bunny", "year": 2008,
-        "plot": "Um coelho gigante e gentil enfrenta três pequenos provocadores. Filme aberto da Blender Foundation (CC BY 3.0).",
-        "filename": "BigBuckBunny", "creator": "Blender Foundation",
-        "license": "https://creativecommons.org/licenses/by/3.0/",
+        "source_id": "big-buck-bunny-720p-h-264", "title": "Big Buck Bunny", "year": 2008,
+        "plot": "Coelho gigante enfrenta pequenos provocadores. Curta animado da Blender Foundation (CC BY 3.0).",
+        "creator": "Blender Foundation",
     },
     "openmovie.Sintel": {
-        "title": "Sintel", "year": 2010,
-        "plot": "Uma jovem procura seu amigo dragão. Curta de fantasia da Blender Foundation (CC BY 3.0).",
-        "filename": "Sintel", "creator": "Blender Foundation",
-        "license": "https://creativecommons.org/licenses/by/3.0/",
+        "source_id": "Sintel", "title": "Sintel", "year": 2010,
+        "plot": "Uma jovem busca seu amigo dragão. Filme aberto de fantasia da Blender Foundation (CC BY 3.0).",
+        "creator": "Blender Foundation",
     },
     "openmovie.ElephantsDream": {
-        "title": "Elephants Dream", "year": 2006,
-        "plot": "Dois personagens exploram um mundo surreal de máquinas. Primeiro filme aberto da Blender Foundation (CC BY 2.5).",
-        "filename": "ElephantsDream", "creator": "Blender Foundation",
-        "license": "https://creativecommons.org/licenses/by/2.5/",
+        "source_id": "ElephantsDream", "title": "Elephants Dream", "year": 2006,
+        "plot": "Dois amigos percorrem um mundo surreal de máquinas. Filme aberto da Blender Foundation (CC BY 2.5).",
+        "creator": "Blender Foundation",
     },
     "openmovie.TearsOfSteel": {
-        "title": "Tears of Steel", "year": 2012,
+        "source_id": "Tears-of-Steel", "title": "Tears of Steel", "year": 2012,
         "plot": "Ficção científica com atores reais e efeitos visuais. Filme aberto da Blender Foundation (CC BY 3.0).",
-        "filename": "TearsOfSteel", "creator": "Blender Foundation",
-        "license": "https://creativecommons.org/licenses/by/3.0/",
+        "creator": "Blender Foundation",
+    },
+    "openmovie.CosmosLaundromat": {
+        "source_id": "CosmosLaundromatFirstCycle", "title": "Cosmos Laundromat", "year": 2015,
+        "plot": "Curta animado de aventura existencial da Blender Foundation.",
+        "creator": "Blender Foundation",
     },
 }
 
@@ -75,8 +75,8 @@ def featured():
         "plot": item["plot"],
         "creator": item["creator"],
         "year": item["year"],
-        "license": item["license"],
-        "thumb": GOOGLE_SAMPLES + "images/" + item["filename"] + ".jpg",
+        "license": "Licença aberta Blender Foundation; verificada ao reproduzir",
+        "thumb": IMAGE_ROOT + quote(item["source_id"], safe=""),
     } for key, item in OPEN_MOVIES.items()]
 
 
@@ -184,14 +184,9 @@ def search(category="destaques", page=1, search_term=""):
 
 def playback(identifier):
     ident = sanitize_identifier(identifier)
-    if ident in OPEN_MOVIES:
-        item = OPEN_MOVIES[ident]
-        return {
-            "url": GOOGLE_SAMPLES + item["filename"] + ".mp4",
-            "title": item["title"], "plot": item["plot"],
-            "license": item["license"], "creator": item["creator"],
-            "thumb": GOOGLE_SAMPLES + "images/" + item["filename"] + ".jpg",
-        }
+    featured_item = OPEN_MOVIES.get(ident)
+    if featured_item:
+        ident = sanitize_identifier(featured_item["source_id"])
     data = fetch_json(METADATA_ROOT + quote(ident, safe=""))
     info = data.get("metadata") or {}
     if not isinstance(info, dict) or not open_license(info.get("licenseurl")):
@@ -229,9 +224,9 @@ def playback(identifier):
     filename = min(choices)[1]
     return {
         "url": DOWNLOAD_ROOT + quote(ident, safe="") + "/" + quote(filename, safe="/"),
-        "title": clean_text(info.get("title"), 130) or ident,
-        "plot": clean_text(info.get("description")),
+        "title": featured_item["title"] if featured_item else (clean_text(info.get("title"), 130) or ident),
+        "plot": featured_item["plot"] if featured_item else clean_text(info.get("description")),
         "license": _string(info.get("licenseurl")),
-        "creator": clean_text(info.get("creator"), 100),
+        "creator": featured_item["creator"] if featured_item else clean_text(info.get("creator"), 100),
         "thumb": IMAGE_ROOT + quote(ident, safe=""),
     }
