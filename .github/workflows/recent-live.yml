@@ -1,0 +1,35 @@
+name: Verify fresh catalog API
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/recent-live.yml"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Probe movie and show categories
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0,"src/plugin.video.flyghtxmz")
+          import recent
+          for cat in ["movies_new","movies_prev","movies_popular","series_new","series_popular"]:
+              try:
+                  items, more = recent.list_titles(cat,year=2026)
+                  print("CATEGORY",cat,"RESULTS",len(items),"MORE",more,"FIRST",[(x["title"],x["year"],x["id"]) for x in items[:3]])
+                  if items:
+                      detail=recent.detail(items[0]["id"],items[0]["type"])
+                      print("DETAIL",cat,detail)
+              except Exception as error:
+                  print("ERROR",cat,type(error).__name__,str(error)[:300])
+          for cat in ["search_movie","search_series"]:
+              try:
+                  items,more=recent.list_titles(cat,search_term="Avatar",year=2026)
+                  print("SEARCH",cat,len(items), [(x["title"],x["id"]) for x in items[:3]])
+              except Exception as error:
+                  print("SEARCH_ERROR",cat,type(error).__name__,str(error)[:300])
+          PY
