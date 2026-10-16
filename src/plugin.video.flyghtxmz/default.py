@@ -23,16 +23,22 @@ ELEMENTUM_PLAY_URL = "plugin://plugin.video.elementum/play"
 ELEMENTUM_HELP = "https://elementumorg.github.io/getting-started/installation/"
 
 
-def plugin_url(action):
-    return "{}?{}".format(BASE_URL, urlencode({"action": action}))
+def plugin_url(action, **params):
+    args = {"action": action}
+    args.update({key: value for key, value in params.items() if value is not None})
+    return "{}?{}".format(BASE_URL, urlencode(args))
 
 
-def add_item(label, action, playable=False):
+def add_item(label, action, playable=False, folder=False, artwork=None, info=None, **params):
     item = xbmcgui.ListItem(label=label)
     if playable:
         item.setProperty("IsPlayable", "true")
+    if artwork:
+        item.setArt(artwork)
+    if info:
+        item.setInfo("video", info)
     xbmcplugin.addDirectoryItem(
-        handle=HANDLE, url=plugin_url(action), listitem=item, isFolder=False
+        handle=HANDLE, url=plugin_url(action, **params), listitem=item, isFolder=folder
     )
 
 
@@ -41,7 +47,11 @@ def finish():
 
 
 def show_menu():
+    from catalog import CATEGORIES
     xbmcplugin.setContent(HANDLE, "videos")
+    for category, title in CATEGORIES:
+        add_item(title, "catalog", folder=True, category=category)
+    add_item("Pesquisar filmes e vídeos", "search")
     add_item("Diagnosticar repositório (erro de conexão)", "diagnostic")
     add_item("Adicionar magnet ou URL .torrent", "torrent_input")
     add_item("Configurar Elementum (buffer / armazenamento)", "elementum_settings")
@@ -52,6 +62,56 @@ def show_menu():
     add_item("Configurar URL do meu vídeo", "settings")
     add_item("Sobre o addon", "about")
     finish()
+
+
+def show_catalog(category, page=1, term=""):
+    from catalog import search
+    xbmcplugin.setContent(HANDLE, "movies")
+    try:
+        results, has_next = search(category=category, page=page, search_term=term)
+    except Exception as exc:
+        xbmcgui.Dialog().ok("Catálogo indisponível", "Não foi possível consultar o catálogo agora. " + str(exc)[:150])
+        finish()
+        return
+    for entry in results:
+        info = {"title": entry["title"], "plot": entry.get("plot") or "Licença Creative Commons ou domínio público."}
+        try:
+            year = int(entry.get("year") or 0)
+            if 1870 <= year <= 2100:
+                info["year"] = year
+        except (ValueError, TypeError):
+            pass
+        art = {"thumb": entry["thumb"], "poster": entry["thumb"], "icon": entry["thumb"]}
+        add_item(entry["title"], "catalog_play", playable=True, artwork=art, info=info,
+                 identifier=entry["identifier"])
+    if has_next:
+        add_item("Próxima página >>", "catalog", folder=True, category=category,
+                 page=page + 1, term=term)
+    if not results:
+        xbmcgui.Dialog().ok("Nenhum resultado", "Tente outra categoria ou termo de busca.")
+    finish()
+
+
+def search_catalog():
+    term = xbmcgui.Dialog().input("Pesquisar vídeos de licença aberta", type=xbmcgui.INPUT_ALPHANUM)
+    finish()
+    if term and term.strip():
+        xbmc.executebuiltin("Container.Update({})".format(plugin_url("catalog", category="busca",
+                                                                       page=1, term=term.strip()[:80])))
+
+
+def play_catalog(identifier):
+    from catalog import playback
+    try:
+        data = playback(identifier)
+        video = xbmcgui.ListItem(label=data["title"], path=data["url"])
+        video.setProperty("IsPlayable", "true")
+        video.setArt({"thumb": data["thumb"], "icon": data["thumb"]})
+        video.setInfo("video", {"title": data["title"], "plot": data.get("plot") or ""})
+        xbmcplugin.setResolvedUrl(HANDLE, True, video)
+    except Exception as exc:
+        xbmcgui.Dialog().ok("Não foi possível reproduzir", str(exc)[:220])
+        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
 
 
 def play_http(url, label):
@@ -156,7 +216,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.1.2",
+        "Felipe Vídeos 1.2.0",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -168,7 +228,18 @@ def main():
     params = parse_qs(sys.argv[2].lstrip("?")) if len(sys.argv) > 2 else {}
     action = params.get("action", [""])[0]
 
-    if action == "demo":
+    if action == "catalog":
+        try:
+            page = int(params.get("page", ["1"])[0])
+        except ValueError:
+            page = 1
+        show_catalog(params.get("category", ["destaques"])[0],
+                     page=page, term=params.get("term", [""])[0])
+    elif action == "catalog_play":
+        play_catalog(params.get("identifier", [""])[0])
+    elif action == "search":
+        search_catalog()
+    elif action == "demo":
         play_http(DEMO_URL, "Flores - MDN")
     elif action == "custom":
         play_http(ADDON.getSetting("custom_url").strip(), "Meu vídeo")

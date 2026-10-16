@@ -4,7 +4,7 @@ Fonte Kodi no GitHub Pages: https://flyghtxmz.github.io/kodi-repo/
 
 No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.3.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
 
-## Felipe Vídeos 1.1.2 (Kodi 21.2 Omega)
+## Felipe Vídeos 1.2.0 (Kodi 21.2 Omega)
 
 - Reprodução de URL direta de vídeo, com clipe de teste CC0.
 - Digitação/colagem de magnet link (`magnet:?xt=urn:btih:...`) ou URL HTTP(S) terminada em `.torrent`.
@@ -34,3 +34,13 @@ Numeração do instalador aumentada de 1.0.1 para 1.0.2 para o Kodi reconhecer a
 ## Correção de conectividade 1.0.3
 
 A fonte de instalação permanece em `https://flyghtxmz.github.io/kodi-repo/` (GitHub Pages), enquanto o manifesto do repositório instalado lê `addons.xml`, `addons.xml.md5` e os pacotes ZIP em `https://raw.githubusercontent.com/flyghtxmz/kodi-repo/main/`. Essa separação reproduz a estratégia observada no manifesto `repository.cineroom` v1.0.1. Instale o ZIP 1.0.3 para substituir as URLs antigas no Kodi; a alteração só pode ser validada completamente em um Kodi real.
+
+
+## Felipe Vídeos 1.2.0 — Catálogo automático
+
+- Menu de Mais populares, Filmes, Séries e programas, Documentários, Animações e Curtas-metragens.
+- Busca por título, capas, sinopse, paginação e reprodução sem digitar links.
+- O addon consulta sob demanda a API do Internet Archive e resolve automaticamente a URL do vídeo escolhido, sem API key.
+- Itens filtrados pela licença Creative Commons ou domínio público declarada no catálogo; a licença é revalidada antes da reprodução. Não é o catálogo comercial do CineRoom.
+- A disponibilidade do catálogo varia com o Internet Archive. Elementum continua opcional para magnet links fornecidos pelo usuário.
+- O repositório Felipe Addons 1.0.3 permanece sem alteração, permitindo atualizar o addon pelo Kodi.
