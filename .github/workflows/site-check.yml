@@ -14,6 +14,7 @@ jobs:
         run: |
           python - <<'PY'
           import hashlib
+          import time
           import urllib.request
           import xml.etree.ElementTree as ET
           from zipfile import ZipFile
@@ -31,8 +32,15 @@ jobs:
                   print(f"OK {response.status} {url} ({len(content)} bytes)")
                   return content
 
-          index_html = get(pages).decode("utf-8")
-          assert repo_zip in index_html and addon_zip in index_html
+          # Pages pode estar alguns instantes atrasado em relação ao build do ZIP.
+          for attempt in range(12):
+              index_html = get(pages).decode("utf-8")
+              if repo_zip in index_html and addon_zip in index_html:
+                  break
+              print("WAIT_PAGES_DEPLOYMENT", attempt + 1)
+              time.sleep(8)
+          else:
+              raise AssertionError("Páginas ainda não publicaram o instalador esperado")
 
           for origin in (pages, raw):
               xml_data = get(origin + "addons.xml")
