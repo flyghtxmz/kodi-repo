@@ -6,7 +6,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.3.8
+## Felipe Vídeos 1.3.9
 
 **Tela principal**
 
@@ -21,7 +21,7 @@ Filmes contém *Filmes de 2026*, *Filmes de 2025* e *Filmes em alta*
 e *Séries em alta*. O catálogo e as capas vêm do Cinemeta.
 
 Ao selecionar um filme ou série aparece um **popup nativo do Kodi** com
-**Buscar fontes**, trailer (quando disponível), onde assistir no Brasil e sinopse,
+**Buscar fontes**, trailer (quando disponível) e onde assistir no Brasil,
 sem abrir uma nova pasta. **Buscar fontes** abre um segundo popup com as
 fontes disponíveis; ao escolher uma delas o Elementum é chamado diretamente.
 Cancelar qualquer popup mantém o usuário no catálogo.
@@ -87,7 +87,15 @@ manual do arquivo de vídeo no caso de torrents com múltiplos arquivos.
 - As notas podem permanecer temporariamente iguais caso o Cinemeta ainda não
   tenha refletido uma mudança feita no IMDb. A origem externa é responsável
   por publicar o dado, e o addon não promete sincronização em tempo real.
-- Na lista do catálogo, o resumo avisa que a sinopse PT-BR está disponível
-  ao abrir o título, para evitar dezenas de consultas externas por página.
+- A sinopse PT-BR aparece diretamente no **painel de informações da capa**
+  ao selecionar o filme ou série, substituindo a antiga mensagem
+  "Abra o título para consultar a sinopse". A opção "Sinopse e detalhes"
+  foi retirada do popup; o popup continua apenas com busca de fontes,
+  trailer e onde assistir no Brasil.
+- Para evitar longas esperas, as listagens agora exibem até **20 títulos por
+  página**. Na primeira visita o addon busca as traduções desses títulos
+  em paralelo (até oito requisições simultâneas, 3 s por consulta).
+  Resultados permanecem em cache por sete dias; falhas mostram uma mensagem
+  em português, e novas tentativas são feitas no máximo uma vez por dia.
 - Nenhuma chave TMDb é exigida nas configurações do Kodi, e o Worker de
   produção da Cloudflare não foi modificado.
