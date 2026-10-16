@@ -1,3 +1,4 @@
+import {queryTorrentio,mergeSources} from "./torrentio.mjs";
 // Felipe Vídeos: interface do Worker, sem fontes incluídas.
 // Preserve os adaptadores que você criou no painel Cloudflare. Não faça
 // redeploy deste template sobre sua versão customizada sem sincronizar o código.
@@ -13,7 +14,7 @@ function json(data, status = 200) {
   });
 }
 export default {
-  async fetch(request) {
+  async fetch(request, env={}) {
     const url = new URL(request.url);
     if (request.method !== "GET") return json({error:"method_not_allowed"},405);
     if (url.pathname === "/health") return json({ok:true,version:"0.2",deployed:true});
@@ -25,8 +26,19 @@ export default {
         (year && !/^[12]\d{3}$/.test(year)) ||
         (imdb && !IMDB.test(imdb)))
       return json({error:"invalid_query"},400);
-    // Template intencionalmente sem indexadores. O Worker já publicado
-    // pode ter suas próprias implementações de fontes.
-    return json({imdb:imdb || null,title,year:year || null,sources:[],providers:[]});
+    // Integração opt-in: a produção editada na Cloudflare permanece intocada.
+    // Ajustar/mesclar os adaptadores do ambiente publicado antes de fazer deploy.
+    let sources=[],providers=[],providerStats={};
+    if (env?.TORRENTIO_ENABLED === "true" && imdb) {
+      providers.push("Torrentio");
+      try {
+        const result=await queryTorrentio(imdb,{base:env.TORRENTIO_BASE_URL});
+        sources=mergeSources([],result.sources);
+        providerStats.torrentio=result.stats;
+      } catch(error) {
+        providerStats.torrentio={error:String(error?.message||"unavailable").slice(0,80)};
+      }
+    }
+    return json({imdb:imdb || null,title,year:year || null,sources,providers,providerStats});
   },
 };
