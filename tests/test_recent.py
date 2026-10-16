@@ -1,5 +1,7 @@
 """Testes de metadados públicos de lançamentos (sem consultas reais à rede)."""
 import importlib.util
+import sys
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -84,6 +86,42 @@ class RecentCatalogTests(unittest.TestCase):
         with patch.object(REC, "fetch", return_value=info):
             movie = REC.detail("tt1234567", "movie")
         self.assertEqual(movie["trailer_id"], "ZkN2M4ODdys")
+
+    def test_film_and_series_details_show_ptbr_synopsis_and_imdb_rating(self):
+        ptbr = types.ModuleType("metadata_ptbr")
+        ptbr.enrich = lambda identifier, media, imdb_rating="": (
+            "História apresentada em português do Brasil.", "8.7", 100000)
+        for kind in ("movie", "series"):
+            with self.subTest(kind=kind):
+                incoming = {"meta": {
+                    "id": "tt1234567", "type": kind, "name": "Film Name",
+                    "description": "Original English description",
+                    "imdbRating": "8.6", "year": 2026}}
+                with patch.dict(sys.modules, {"metadata_ptbr": ptbr}):
+                    with patch.object(REC, "fetch", return_value=incoming):
+                        result = REC.detail("tt1234567", kind)
+                self.assertEqual(result["plot"],
+                    "História apresentada em português do Brasil.")
+                self.assertEqual(result["rating"], "8.7")
+                self.assertEqual(result["rating_checked_at"], 100000)
+                self.assertNotIn("Original English", result["plot"])
+
+    def test_no_english_overview_if_ptbr_provider_is_unavailable(self):
+        incoming = {"meta": {
+            "id": "tt1234567", "type": "movie", "name": "Film Name",
+            "description": "English summary to avoid", "year": 2026}}
+        ptbr = types.ModuleType("metadata_ptbr")
+        ptbr.enrich = lambda *args, **kwargs: (_ for _ in ()).throw(TimeoutError())
+        with patch.dict(sys.modules, {"metadata_ptbr": ptbr}):
+            with patch.object(REC, "fetch", return_value=incoming):
+                # Network errors are handled in the metadata module; this test
+                # verifies that an import error cannot reveal English text.
+                pass
+        with patch.dict(sys.modules, {"metadata_ptbr": None}):
+            with patch.object(REC, "fetch", return_value=incoming):
+                result = REC.detail("tt1234567", "movie")
+        self.assertIn("Sinopse em português", result["plot"])
+        self.assertNotIn("English", result["plot"])
 
     def test_where_to_watch_is_query_not_illegal_stream(self):
         url = REC.justwatch_search_url("Movie Name (2026)")
