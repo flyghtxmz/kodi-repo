@@ -176,14 +176,47 @@ def show_catalog(category, page=1, term=""):
         except (ValueError, TypeError):
             pass
         art = {"thumb": entry["thumb"], "poster": entry["thumb"], "icon": entry["thumb"]}
-        add_item(entry["title"], "catalog_play", playable=True, artwork=art, info=info,
-                 identifier=entry["identifier"])
+        if entry["identifier"] in __import__("catalog").OPEN_MOVIES:
+            add_item(entry["title"], "catalog_options", folder=True,
+                     artwork=art, info=info, identifier=entry["identifier"])
+        else:
+            add_item(entry["title"], "catalog_play", playable=True, artwork=art, info=info,
+                     identifier=entry["identifier"])
     if has_next:
         add_item("Próxima página >>", "catalog", folder=True, category=category,
                  page=page + 1, term=term)
     if not results:
         xbmcgui.Dialog().ok("Nenhum resultado", "Tente outra categoria ou termo de busca.")
     finish()
+
+
+def show_catalog_options(identifier):
+    from catalog import OPEN_MOVIES, IMAGE_ROOT
+    if identifier not in OPEN_MOVIES:
+        xbmcgui.Dialog().ok("Opção indisponível", "Este item não pertence à seleção curada.")
+        finish()
+        return
+    movie = OPEN_MOVIES[identifier]
+    art = {"thumb": IMAGE_ROOT + movie["source_id"], "poster": IMAGE_ROOT + movie["source_id"]}
+    info = {"title": movie["title"], "plot": movie["plot"]}
+    add_item("Assistir diretamente", "catalog_play", playable=True,
+             artwork=art, info=info, identifier=identifier)
+    add_item("Assistir via torrent autorizado (Elementum)", "catalog_open_torrent",
+             artwork=art, info=info, identifier=identifier)
+    finish()
+
+
+def play_open_torrent(identifier):
+    from catalog import licensed_torrent
+    finish()
+    if elementum_addon() is None:
+        missing_elementum()
+        return
+    try:
+        uri = licensed_torrent(identifier)
+        xbmc.executebuiltin("PlayMedia({})".format(build_elementum_url(uri)))
+    except Exception as exc:
+        xbmcgui.Dialog().ok("Torrent indisponível", str(exc)[:220])
 
 
 def search_catalog():
@@ -310,7 +343,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.3.0",
+        "Felipe Vídeos 1.3.1",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -349,6 +382,10 @@ def main():
                      page=page, term=params.get("term", [""])[0])
     elif action == "catalog_play":
         play_catalog(params.get("identifier", [""])[0])
+    elif action == "catalog_options":
+        show_catalog_options(params.get("identifier", [""])[0])
+    elif action == "catalog_open_torrent":
+        play_open_torrent(params.get("identifier", [""])[0])
     elif action == "search":
         search_catalog()
     elif action == "demo":
