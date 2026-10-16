@@ -95,36 +95,19 @@ def show_recent(category, page=1, term=""):
     xbmcplugin.setContent(HANDLE, "tvshows" if category.startswith("series_") or category == "search_series" else "movies")
     try:
         results, more = list_titles(category, page=page, search_term=term)
-        # Busca nomes e sinopses em PT-BR juntos; preserva IDs IMDb.
-        from metadata_ptbr import descriptions_for_catalog, FALLBACK_SYNOPSIS
-        try:
-            localized = descriptions_for_catalog(results, include_titles=True)
-        except (OSError, ValueError, TypeError) as error:
-            xbmc.log("Felipe Vídeos: cache PT-BR indisponível ({})".format(
-                type(error).__name__), xbmc.LOGWARNING)
-            localized = {}
-        rendered = []
+        # TMDb PT-BR já fornece nomes localizados e sinopses por página.
+        # Não faz uma segunda requisição para cada capa.
         for movie in results:
-            key = "{}:{}".format(movie["type"], movie["id"])
-            entry = localized.get(key, {})
-            if isinstance(entry, str):
-                entry = {"plot": entry}
-            title_ptbr = (entry.get("title") or movie["title"]).strip()
-            plot_ptbr = entry.get("plot") or FALLBACK_SYNOPSIS
-            rendered.append((title_ptbr, plot_ptbr, movie))
-
-        def az(row):
-            value = unicodedata.normalize("NFKD", row[0].casefold())
-            return ("".join(char for char in value if not unicodedata.combining(char)),
-                    row[2]["id"])
-        rendered.sort(key=az)
-        for title_ptbr, plot_ptbr, movie in rendered:
-            info = {"title": title_ptbr, "plot": plot_ptbr}
+            info = {"title": movie["title"],
+                    "plot": movie.get("plot") or
+                    "Sinopse em português (Brasil) ainda não disponível."}
             match = re.match(r"^(\d{4})", movie.get("year") or "")
             if match:
                 info["year"] = int(match.group(1))
-            art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
-            add_item(title_ptbr, "recent_detail", folder=False, artwork=art, info=info,
+            art = {"thumb": movie["poster"], "poster": movie["poster"],
+                   "icon": movie["poster"]}
+            add_item(movie["title"], "recent_detail", folder=False,
+                     artwork=art, info=info,
                      identifier=movie["id"], media=movie["type"])
         if more:
             add_item("Próxima página >>", "recent", folder=True, category=category,
