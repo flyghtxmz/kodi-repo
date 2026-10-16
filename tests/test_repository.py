@@ -109,10 +109,11 @@ class PluginTests(unittest.TestCase):
 
         metadata_stub = types.ModuleType("metadata_ptbr")
         metadata_stub.FALLBACK_SYNOPSIS = "Sinopse em português (Brasil) ainda não disponível."
-        metadata_stub.descriptions_for_catalog = lambda movies: {
-            "{}:{}".format(movie["type"], movie["id"]):
-                "Uma história envolvente apresentada em português do Brasil."
-            for movie in movies
+        metadata_stub.descriptions_for_catalog = lambda movies, include_titles=False: {
+            "{}:{}".format(movie["type"], movie["id"]): {
+                "title": "Filme recente",
+                "plot": "Uma história envolvente apresentada em português do Brasil."
+            } for movie in movies
         }
         cloudflare_stub = types.ModuleType("cloudflare_client")
         cloudflare_stub.list_sources = lambda title, year="", imdb="": source_items if source_items is not None else [{
@@ -128,8 +129,16 @@ class PluginTests(unittest.TestCase):
             ("movies_new", "Filmes de {year}"),
             ("movies_prev", "Filmes de {prev_year}"),
             ("movies_popular", "Filmes em alta"),
+            ("movies_rating", "Mais bem avaliados (IMDb)"),
             ("series_new", "Séries de {year}"),
             ("series_popular", "Séries em alta"),
+            ("series_rating", "Mais bem avaliadas (IMDb)"),
+        )
+        recent_stub.GENRE_CATEGORIES = (
+            ("movies_genre_action", "Ação"),
+            ("movies_genre_horror", "Terror"),
+            ("series_genre_drama", "Drama"),
+            ("series_genre_reality", "Reality shows"),
         )
         recent_stub.list_titles = lambda category, **kwargs: ([{
             "id":"tt1234567", "type":"movie", "title":"Movie Recent",
@@ -175,9 +184,15 @@ class PluginTests(unittest.TestCase):
         movies = self.run_addon("sections", query={"media": "movie"})
         series = self.run_addon("sections", query={"media": "series"})
         tools = self.run_addon("tools")
-        self.assertEqual(len(movies["items"]), 3)
-        self.assertEqual(len(series["items"]), 2)
+        self.assertEqual(len(movies["items"]), 5)
+        self.assertEqual(len(series["items"]), 4)
         self.assertEqual(len(tools["items"]), 5)
+        self.assertEqual(movies["items"][-1]["listitem"].label, "Gêneros")
+        self.assertEqual(series["items"][-1]["listitem"].label, "Gêneros")
+        film_genres = self.run_addon("genres", query={"media": "movie"})
+        show_genres = self.run_addon("genres", query={"media": "series"})
+        self.assertEqual([x["listitem"].label for x in film_genres["items"]], ["Ação", "Terror"])
+        self.assertEqual([x["listitem"].label for x in show_genres["items"]], ["Drama", "Reality shows"])
         self.assertTrue(all(x["isFolder"] for x in movies["items"]))
         self.assertIn("torrent_input", tools["items"][0]["url"])
         self.assertIn("elementum_settings", tools["items"][1]["url"])
@@ -188,6 +203,8 @@ class PluginTests(unittest.TestCase):
         self.assertFalse(result["items"][0]["isFolder"])
         self.assertIn("tt1234567", result["items"][0]["url"])
         self.assertEqual(result["items"][0]["listitem"].info["year"], 2026)
+        self.assertEqual(result["items"][0]["listitem"].label, "Filme recente")
+        self.assertEqual(result["items"][0]["listitem"].info["title"], "Filme recente")
         self.assertEqual(result["items"][0]["listitem"].info["plot"],
                          "Uma história envolvente apresentada em português do Brasil.")
         self.assertNotIn("Abra o título", result["items"][0]["listitem"].info["plot"])
