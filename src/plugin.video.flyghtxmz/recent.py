@@ -20,42 +20,38 @@ ALL_CATEGORIES = (
     ("movies_prev", "Filmes de {prev_year}"),
     ("movies_popular", "Filmes em alta"),
     ("movies_best_rated", "Mais bem avaliados no IMDb"),
-    ("movies_action", "Ação"),
-    ("movies_adventure", "Aventura"),
-    ("movies_animation", "Animação"),
-    ("movies_comedy", "Comédia"),
-    ("movies_crime", "Crime"),
-    ("movies_documentary", "Documentários"),
-    ("movies_drama", "Drama"),
-    ("movies_family", "Família"),
-    ("movies_fantasy", "Fantasia"),
-    ("movies_horror", "Terror"),
-    ("movies_mystery", "Mistério"),
-    ("movies_romance", "Romance"),
-    ("movies_scifi", "Ficção científica"),
-    ("movies_thriller", "Suspense"),
     ("series_new", "Séries de {year}"),
-    ("series_prev", "Séries de {prev_year}"),
     ("series_popular", "Séries em alta"),
     ("series_best_rated", "Mais bem avaliadas no IMDb"),
-    ("series_action", "Ação"),
-    ("series_adventure", "Aventura"),
-    ("series_animation", "Animação"),
-    ("series_comedy", "Comédia"),
-    ("series_crime", "Crime"),
-    ("series_documentary", "Documentários"),
-    ("series_drama", "Drama"),
-    ("series_fantasy", "Fantasia"),
-    ("series_mystery", "Mistério"),
-    ("series_scifi", "Ficção científica"),
-    ("series_thriller", "Suspense"),
-    ("series_reality", "Reality shows"),
 )
-CATEGORIES = tuple((category, label) for category, label in ALL_CATEGORIES
-                   if category.split("_", 1)[1] in ("new", "prev", "popular", "best_rated"))
-GENRE_CATEGORIES = tuple((category, label) for category, label in ALL_CATEGORIES
-                         if category.split("_", 1)[1] not in
-                         ("new", "prev", "popular", "best_rated"))
+GENRE_CATEGORIES = (
+    ("movies_genre_action", "Ação"),
+    ("movies_genre_adventure", "Aventura"),
+    ("movies_genre_animation", "Animação"),
+    ("movies_genre_comedy", "Comédia"),
+    ("movies_genre_crime", "Crime"),
+    ("movies_genre_documentary", "Documentários"),
+    ("movies_genre_drama", "Drama"),
+    ("movies_genre_family", "Família"),
+    ("movies_genre_fantasy", "Fantasia"),
+    ("movies_genre_horror", "Terror"),
+    ("movies_genre_mystery", "Mistério"),
+    ("movies_genre_romance", "Romance"),
+    ("movies_genre_scifi", "Ficção científica"),
+    ("movies_genre_thriller", "Suspense"),
+    ("series_genre_action", "Ação"),
+    ("series_genre_adventure", "Aventura"),
+    ("series_genre_animation", "Animação"),
+    ("series_genre_comedy", "Comédia"),
+    ("series_genre_crime", "Crime"),
+    ("series_genre_documentary", "Documentários"),
+    ("series_genre_drama", "Drama"),
+    ("series_genre_fantasy", "Fantasia"),
+    ("series_genre_mystery", "Mistério"),
+    ("series_genre_scifi", "Ficção científica"),
+    ("series_genre_thriller", "Suspense"),
+    ("series_genre_reality", "Reality shows"),
+)
 GENRE_CODES = {
     "action":"Action", "adventure":"Adventure", "animation":"Animation",
     "comedy":"Comedy", "crime":"Crime", "documentary":"Documentary",
@@ -104,7 +100,8 @@ def _parts(category, year=None, query=None):
             raise ValueError("Digite um título.")
         media = "movie" if category == "search_movie" else "series"
         return media, "top", "search=" + quote(query.strip()[:80], safe="")
-    if category not in {name for name, _ in ALL_CATEGORIES}:
+    allowed = {name for name, _ in CATEGORIES + GENRE_CATEGORIES}
+    if category not in allowed:
         raise ValueError("Categoria desconhecida.")
     media = "movie" if category.startswith("movies_") else "series"
     suffix = category.split("_", 1)[1]
@@ -116,8 +113,10 @@ def _parts(category, year=None, query=None):
         return media, "top", ""
     if suffix == "best_rated":
         return media, "imdbRating", ""
-    if suffix in GENRE_CODES:
-        return media, "top", "genre=" + quote(GENRE_CODES[suffix], safe="")
+    if suffix.startswith("genre_"):
+        genre = suffix[6:]
+        if genre in GENRE_CODES:
+            return media, "top", "genre=" + quote(GENRE_CODES[genre], safe="")
     raise ValueError("Categoria desconhecida.")
 
 
