@@ -18,7 +18,6 @@ import xbmcplugin
 ADDON = xbmcaddon.Addon()
 HANDLE = int(sys.argv[1])
 BASE_URL = sys.argv[0]
-DEMO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
 ELEMENTUM_ID = "plugin.video.elementum"
 ELEMENTUM_PLAY_URL = "plugin://plugin.video.elementum/play"
 ELEMENTUM_HELP = "https://elementumorg.github.io/getting-started/installation/"
@@ -48,26 +47,34 @@ def finish():
 
 
 def show_menu():
-    from catalog import CATEGORIES
     xbmcplugin.setContent(HANDLE, "videos")
-    from recent import CATEGORIES as RECENT_CATEGORIES
+    add_item("Filmes", "sections", folder=True, media="movie")
+    add_item("Séries", "sections", folder=True, media="series")
+    add_item("Buscar filmes e séries", "recent_search")
+    add_item("Ferramentas", "tools", folder=True)
+    add_item("Sobre o Felipe Vídeos", "about")
+    finish()
+
+
+def show_sections(media):
+    from recent import CATEGORIES
     year = date.today().year
-    for category, label in RECENT_CATEGORIES:
-        add_item(label.format(year=year, prev_year=year-1), "recent", folder=True, category=category)
-    add_item("Buscar lançamentos e séries", "recent_search")
-    add_item("— Filmes completos de licença aberta —", "open_catalog_info")
+    prefix = "series_" if media == "series" else "movies_"
+    xbmcplugin.setContent(HANDLE, "videos")
     for category, title in CATEGORIES:
-        add_item(title, "catalog", folder=True, category=category)
-    add_item("Pesquisar filmes e vídeos", "search")
-    add_item("Diagnosticar repositório (erro de conexão)", "diagnostic")
-    add_item("Adicionar magnet ou URL .torrent", "torrent_input")
-    add_item("Configurar Elementum (buffer / armazenamento)", "elementum_settings")
+        if category.startswith(prefix):
+            add_item(title.format(year=year, prev_year=year-1), "recent",
+                     folder=True, category=category)
+    finish()
+
+
+def show_tools():
+    xbmcplugin.setContent(HANDLE, "files")
+    add_item("Adicionar magnet ou arquivo .torrent", "torrent_input")
+    add_item("Configurações do Elementum", "elementum_settings")
     add_item("Como instalar o Elementum", "elementum_help")
-    add_item("Flores (vídeo de demonstração)", "demo", playable=True)
-    if ADDON.getSetting("custom_url").strip():
-        add_item("Reproduzir meu vídeo", "custom", playable=True)
-    add_item("Configurar URL do meu vídeo", "settings")
-    add_item("Sobre o addon", "about")
+    add_item("Diagnóstico de conexão", "diagnostic")
+    add_item("Configurações avançadas", "settings")
     finish()
 
 
@@ -96,25 +103,18 @@ def show_recent(category, page=1, term=""):
 
 def show_recent_detail(identifier, media):
     from recent import detail
-    xbmcplugin.setContent(HANDLE, "movies")
+    xbmcplugin.setContent(HANDLE, "movies" if media == "movie" else "tvshows")
     try:
         movie = detail(identifier, media=media)
         art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
         info = {"title": movie["title"], "plot": movie["plot"] or "Sinopse indisponível"}
-        if media == "movie" and ADDON.getSetting("prowlarr_api_key").strip():
-            add_item("Reproduzir automaticamente (PT-BR)", "recent_play", playable=True,
-                     artwork=art, info=info, identifier=identifier)
-        if media == "movie":
-            if True:  # A URL será descoberta pelo arquivo público endpoint.json.
-                add_item("Fontes abertas via Cloudflare", "cloudflare_sources",
-                         folder=True, artwork=art, info=info, identifier=identifier,
-                         title=movie["title"], year=str(movie.get("year") or "")[:4])
-            add_item("Pesquisar no Elementum (sem Prowlarr)", "recent_elementum",
-                     artwork=art, info=info, identifier=identifier)
-        if movie["trailer_id"]:
-            add_item("▶ Ver trailer (YouTube)", "recent_trailer", artwork=art,
+        add_item("Buscar fontes", "cloudflare_sources",
+                 folder=True, artwork=art, info=info, identifier=identifier,
+                 title=movie["title"], year=str(movie.get("year") or "")[:4])
+        if movie.get("trailer_id"):
+            add_item("Ver trailer", "recent_trailer", artwork=art,
                      info=info, identifier=identifier, media=media)
-        add_item("Onde assistir no Brasil (serviços oficiais)", "recent_where",
+        add_item("Onde assistir no Brasil", "recent_where",
                  artwork=art, info=info, identifier=identifier, media=media)
         add_item("Sinopse e detalhes", "recent_info", artwork=art, info=info,
                  identifier=identifier, media=media)
@@ -124,106 +124,45 @@ def show_recent_detail(identifier, media):
 
 
 def show_cloudflare_sources(title, year="", imdb=""):
-    """Mostra somente URLs verificadas devolvidas pelo Worker configurado."""
+    """Consulta apenas os provedores aceitos pelo cliente."""
     from cloudflare_client import list_sources
     xbmcplugin.setContent(HANDLE, "files")
     try:
         sources = list_sources(title, year=year, imdb=imdb)
         for source in sources:
-            size = source["size"]
-            size_text = "{:.1f} GB".format(size / 1073741824) if size else "? GB"
-            seeds = source["seeders"]
-            seeds_text = str(seeds) if seeds is not None else "desconhecido"
-            label = "{} | {} | {} | seeds: {} | áudio: não verificado".format(
-                source["title"], source["quality"], size_text, seeds_text)
+            size_text = "{:.1f} GB".format(source["size"] / 1073741824) if source["size"] else "n/d"
+            seed_text = str(source["seeders"]) if source["seeders"] is not None else "n/d"
+            language = source["language"] if source["language"] != "unknown" else "n/d"
+            label = "{} | {} | {} | {} | Seeds: {} | Áudio: {}".format(
+                source["title"], source["source"], source["quality"], size_text, seed_text, language)
             add_item(label, "cloudflare_play",
                      info={"title": source["title"],
-                           "plot": "Fonte: {}. Licença aberta verificada; áudio não confirmado.".format(
-                               source["source"])},
+                           "plot": "Fonte informada pelo provedor. Verifique os direitos de reprodução."},
                      url=source["url"])
         if not sources:
-            xbmcgui.Dialog().ok(
-                "Fontes Cloudflare",
-                "Nenhuma fonte de licença aberta encontrada para este filme. "
-                "O catálogo de lançamentos não garante torrents disponíveis.")
+            xbmcgui.Dialog().ok("Nenhuma fonte disponível",
+                "A API não retornou fontes compatíveis. Confira os provedores "
+                "que você configurou no Cloudflare.")
     except Exception as error:
-        xbmc.log("Felipe Vídeos: API Cloudflare indisponível ({})".format(
+        xbmc.log("Felipe Vídeos: consulta de fontes falhou ({})".format(
             type(error).__name__), xbmc.LOGERROR)
-        xbmcgui.Dialog().ok(
-            "Cloudflare",
-            "Não foi possível consultar o endpoint. Verifique se o Worker já foi "
-            "publicado e se endpoint.json possui o endereço correto.")
+        xbmcgui.Dialog().ok("Fontes indisponíveis",
+            "Não foi possível consultar as fontes. Verifique se o Worker está "
+            "publicado e se endpoint.json aponta para ele.")
     finish()
 
 
 def play_cloudflare_source(url):
-    """Reprodução é delegada ao Elementum, sem precisar de provedores nele."""
+    """Reproduz somente URI validada; Elementum não pesquisa provedores."""
     from cloudflare_client import is_supported_source
     finish()
     if not is_supported_source(url):
-        xbmcgui.Dialog().ok("Fonte inválida", "URL não reconhecida como torrent do acervo.")
+        xbmcgui.Dialog().ok("Fonte inválida", "O link não é um magnet ou torrent compatível.")
         return
     if elementum_addon() is None:
         missing_elementum()
         return
     xbmc.executebuiltin("PlayMedia({})".format(build_elementum_url(url)))
-
-
-def open_recent_in_elementum(identifier):
-    """Abre a pesquisa do Elementum usando apenas o título do filme.
-
-    Não requer Prowlarr nem serviço debrid configurado.
-    """
-    from recent import detail
-    finish()
-    if elementum_addon() is None:
-        missing_elementum()
-        return
-    try:
-        movie = detail(identifier, media="movie")
-        title = movie.get("title") or ""
-        year = str(movie.get("year") or "")[:4]
-        query = " ".join(part for part in (title, year) if part).strip()
-        if not query:
-            raise ValueError("Título não informado.")
-        target = "plugin://plugin.video.elementum/search?" + urlencode({"q": query})
-        xbmc.executebuiltin("Container.Update({})".format(target))
-    except Exception as error:
-        xbmc.log("Felipe Vídeos: busca Elementum indisponível: {}".format(
-            type(error).__name__), xbmc.LOGERROR)
-        xbmcgui.Dialog().ok("Elementum", "Não foi possível abrir a busca.")
-
-
-def play_recent_auto(identifier):
-    """Busca e tenta resolver a melhor fonte configurada para o filme."""
-    from recent import detail
-    from resources.lib.sources import get_playable_url
-
-    progress = xbmcgui.DialogProgress()
-    progress.create("Buscando fontes PT-BR", "Consultando as fontes configuradas")
-    try:
-        movie = detail(identifier, media="movie")
-        year = str(movie.get("year") or "")[:4]
-        direct, source = get_playable_url(identifier, movie["title"], year)
-    except Exception as exc:
-        xbmc.log("Felipe Vídeos: falha ao preparar reprodução (%s)" %
-                 type(exc).__name__, xbmc.LOGERROR)
-        direct, source = None, None
-        movie = None
-    finally:
-        progress.close()
-
-    if not direct or not movie:
-        xbmcgui.Dialog().notification("Sem fontes",
-                "Nenhuma fonte PT-BR compatível foi resolvida",
-                xbmcgui.NOTIFICATION_ERROR, 5000)
-        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
-        return
-    label = movie["title"]
-    video = xbmcgui.ListItem(label=label, path=direct)
-    video.setInfo("video", {"title": label, "plot": movie.get("plot") or ""})
-    video.setProperty("IsPlayable", "true")
-    xbmcplugin.setResolvedUrl(HANDLE, True, video)
 
 
 def search_recent():
@@ -269,104 +208,6 @@ def show_recent_action(action, identifier, media):
                 xbmc.executebuiltin("StartAndroidActivity(com.android.chrome,android.intent.action.VIEW,,{})".format(url))
     except Exception as exc:
         xbmcgui.Dialog().ok("Não foi possível abrir", str(exc)[:220])
-
-
-def show_catalog(category, page=1, term=""):
-    import catalog
-    search = catalog.search
-    open_movies = getattr(catalog, "OPEN_MOVIES", {})
-    xbmcplugin.setContent(HANDLE, "movies")
-    try:
-        results, has_next = search(category=category, page=page, search_term=term)
-    except Exception as exc:
-        xbmcgui.Dialog().ok("Catálogo indisponível", "Não foi possível consultar o catálogo agora. " + str(exc)[:150])
-        finish()
-        return
-    for entry in results:
-        info = {"title": entry["title"], "plot": entry.get("plot") or "Licença Creative Commons ou domínio público."}
-        try:
-            year = int(entry.get("year") or 0)
-            if 1870 <= year <= 2100:
-                info["year"] = year
-        except (ValueError, TypeError):
-            pass
-        art = {"thumb": entry["thumb"], "poster": entry["thumb"], "icon": entry["thumb"]}
-        if entry["identifier"] in open_movies:
-            add_item(entry["title"], "catalog_options", folder=True,
-                     artwork=art, info=info, identifier=entry["identifier"])
-        else:
-            add_item(entry["title"], "catalog_play", playable=True, artwork=art, info=info,
-                     identifier=entry["identifier"])
-    if has_next:
-        add_item("Próxima página >>", "catalog", folder=True, category=category,
-                 page=page + 1, term=term)
-    if not results:
-        xbmcgui.Dialog().ok("Nenhum resultado", "Tente outra categoria ou termo de busca.")
-    finish()
-
-
-def show_catalog_options(identifier):
-    from catalog import OPEN_MOVIES, IMAGE_ROOT
-    if identifier not in OPEN_MOVIES:
-        xbmcgui.Dialog().ok("Opção indisponível", "Este item não pertence à seleção curada.")
-        finish()
-        return
-    movie = OPEN_MOVIES[identifier]
-    art = {"thumb": IMAGE_ROOT + movie["source_id"], "poster": IMAGE_ROOT + movie["source_id"]}
-    info = {"title": movie["title"], "plot": movie["plot"]}
-    add_item("Assistir diretamente", "catalog_play", playable=True,
-             artwork=art, info=info, identifier=identifier)
-    add_item("Assistir via torrent autorizado (Elementum)", "catalog_open_torrent",
-             artwork=art, info=info, identifier=identifier)
-    if True:  # A URL será descoberta pelo arquivo público endpoint.json.
-        add_item("Fontes abertas via Cloudflare", "cloudflare_sources", folder=True,
-                 artwork=art, info=info, title=movie["title"], year=movie["year"])
-    finish()
-
-
-def play_open_torrent(identifier):
-    from catalog import licensed_torrent
-    finish()
-    if elementum_addon() is None:
-        missing_elementum()
-        return
-    try:
-        uri = licensed_torrent(identifier)
-        xbmc.executebuiltin("PlayMedia({})".format(build_elementum_url(uri)))
-    except Exception as exc:
-        xbmcgui.Dialog().ok("Torrent indisponível", str(exc)[:220])
-
-
-def search_catalog():
-    term = xbmcgui.Dialog().input("Pesquisar vídeos de licença aberta", type=xbmcgui.INPUT_ALPHANUM)
-    finish()
-    if term and term.strip():
-        xbmc.executebuiltin("Container.Update({})".format(plugin_url("catalog", category="busca",
-                                                                       page=1, term=term.strip()[:80])))
-
-
-def play_catalog(identifier):
-    from catalog import playback
-    try:
-        data = playback(identifier)
-        video = xbmcgui.ListItem(label=data["title"], path=data["url"])
-        video.setProperty("IsPlayable", "true")
-        video.setArt({"thumb": data["thumb"], "icon": data["thumb"]})
-        video.setInfo("video", {"title": data["title"], "plot": data.get("plot") or ""})
-        xbmcplugin.setResolvedUrl(HANDLE, True, video)
-    except Exception as exc:
-        xbmcgui.Dialog().ok("Não foi possível reproduzir", str(exc)[:220])
-        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
-
-
-def play_http(url, label):
-    if not url or not url.lower().startswith(("https://", "http://")):
-        xbmcgui.Dialog().ok("Felipe Vídeos", "Configure uma URL HTTP ou HTTPS válida.")
-        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
-        return
-    item = xbmcgui.ListItem(label=label, path=url)
-    item.setProperty("IsPlayable", "true")
-    xbmcplugin.setResolvedUrl(HANDLE, True, item)
 
 
 def validate_torrent_uri(raw):
@@ -417,7 +258,7 @@ def missing_elementum():
         "Elementum necessário",
         "Instale e habilite o Elementum na sua TV Box. "
         "Ele é o motor responsável por receber torrents e preparar o buffer. "
-        "Consulte a opção 'Como instalar o Elementum' neste addon.",
+        "Consulte Ferramentas > Como instalar o Elementum.",
     )
 
 
@@ -454,14 +295,14 @@ def show_help():
         "Instalar Elementum",
         "No Kodi, instale o Elementum a partir do repositório oficial e "
         "abra o addon ao menos uma vez. Site oficial: " + ELEMENTUM_HELP + "\n\n"
-        "Depois, volte ao Felipe Vídeos e escolha 'Adicionar magnet'.",
+        "Depois, volte a Ferramentas e escolha 'Adicionar magnet'.",
     )
 
 
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.3.4",
+        "Felipe Vídeos 1.3.5",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -472,8 +313,11 @@ def show_about():
 def main():
     params = parse_qs(sys.argv[2].lstrip("?")) if len(sys.argv) > 2 else {}
     action = params.get("action", [""])[0]
-
-    if action == "recent":
+    if action == "sections":
+        show_sections(params.get("media", ["movie"])[0])
+    elif action == "tools":
+        show_tools()
+    elif action == "recent":
         try:
             page = int(params.get("page", ["1"])[0])
         except ValueError:
@@ -483,10 +327,6 @@ def main():
     elif action == "recent_detail":
         show_recent_detail(params.get("identifier", [""])[0],
                            params.get("media", ["movie"])[0])
-    elif action == "recent_play":
-        play_recent_auto(params.get("identifier", [""])[0])
-    elif action == "recent_elementum":
-        open_recent_in_elementum(params.get("identifier", [""])[0])
     elif action == "cloudflare_sources":
         show_cloudflare_sources(params.get("title", [""])[0],
                                 params.get("year", [""])[0],
@@ -498,28 +338,6 @@ def main():
                            params.get("media", ["movie"])[0])
     elif action == "recent_search":
         search_recent()
-    elif action == "open_catalog_info":
-        finish()
-        xbmcgui.Dialog().ok("Filmes completos", "As seções abaixo contêm filmes disponíveis para reprodução, com licenças abertas.")
-    elif action == "catalog":
-        try:
-            page = int(params.get("page", ["1"])[0])
-        except ValueError:
-            page = 1
-        show_catalog(params.get("category", ["destaques"])[0],
-                     page=page, term=params.get("term", [""])[0])
-    elif action == "catalog_play":
-        play_catalog(params.get("identifier", [""])[0])
-    elif action == "catalog_options":
-        show_catalog_options(params.get("identifier", [""])[0])
-    elif action == "catalog_open_torrent":
-        play_open_torrent(params.get("identifier", [""])[0])
-    elif action == "search":
-        search_catalog()
-    elif action == "demo":
-        play_http(DEMO_URL, "Flores - MDN")
-    elif action == "custom":
-        play_http(ADDON.getSetting("custom_url").strip(), "Meu vídeo")
     elif action == "diagnostic":
         finish()
         from diagnostic import run_diagnostic
