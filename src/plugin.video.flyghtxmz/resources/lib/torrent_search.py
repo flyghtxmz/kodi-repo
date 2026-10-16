@@ -11,10 +11,10 @@ import xbmcaddon
 ADDON = xbmcaddon.Addon()
 TIMEOUT = 20
 QUALITY_PATTERNS = (
-    ("4K", r"(?i)(?:\\b2160p?\\b|\\b4k\\b|\\buhd\\b)"),
-    ("1080p", r"(?i)\\b1080p?\\b"),
-    ("720p", r"(?i)\\b720p?\\b"),
-    ("480p", r"(?i)\\b480p?\\b"),
+    ("4K", r"(?i)(?:\b2160p?\b|\b4k\b|\buhd\b)"),
+    ("1080p", r"(?i)\b1080p?\b"),
+    ("720p", r"(?i)\b720p?\b"),
+    ("480p", r"(?i)\b480p?\b"),
 )
 IMDB_RE = re.compile(r"^tt[0-9]{5,12}$")
 
