@@ -21,6 +21,12 @@ jobs:
           import urllib.request
           sys.path.insert(0, "src/plugin.video.flyghtxmz")
           import catalog
+          for category, title in catalog.CATEGORIES:
+              try:
+                  entries, next_page = catalog.search(category)
+                  print("SECTION", category, "count", len(entries), "first_titles", [x["title"] for x in entries[:8]])
+              except Exception as e:
+                  print("SECTION_ERROR", category, repr(e))
           results, more = catalog.search("destaques")
           print("CATALOG_COUNT", len(results), "MORE", more)
           print("CATALOG_FIRST", [{k: item.get(k) for k in ("identifier", "title", "license")} for item in results[:4]])
