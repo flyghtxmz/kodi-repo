@@ -159,7 +159,7 @@ def show_recent_action(action, identifier, media):
 
 
 def show_catalog(category, page=1, term=""):
-    from catalog import search
+    from catalog import search, OPEN_MOVIES
     xbmcplugin.setContent(HANDLE, "movies")
     try:
         results, has_next = search(category=category, page=page, search_term=term)
@@ -176,7 +176,7 @@ def show_catalog(category, page=1, term=""):
         except (ValueError, TypeError):
             pass
         art = {"thumb": entry["thumb"], "poster": entry["thumb"], "icon": entry["thumb"]}
-        if entry["identifier"] in __import__("catalog").OPEN_MOVIES:
+        if entry["identifier"] in OPEN_MOVIES:
             add_item(entry["title"], "catalog_options", folder=True,
                      artwork=art, info=info, identifier=entry["identifier"])
         else:
