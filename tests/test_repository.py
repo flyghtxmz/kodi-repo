@@ -215,11 +215,12 @@ class PluginTests(unittest.TestCase):
 
     def test_recent_details_offer_trailer_and_watch_options(self):
         result = self.run_addon("recent_detail", query={"identifier": "tt1234567", "media": "movie"})
-        self.assertEqual(len(result["items"]), 4)
-        self.assertIn("recent_elementum", result["items"][0]["url"])
-        self.assertIn("recent_trailer", result["items"][1]["url"])
-        self.assertIn("recent_where", result["items"][2]["url"])
-        self.assertIn("recent_info", result["items"][3]["url"])
+        self.assertEqual(len(result["items"]), 5)
+        self.assertIn("cloudflare_sources", result["items"][0]["url"])
+        self.assertIn("recent_elementum", result["items"][1]["url"])
+        self.assertIn("recent_trailer", result["items"][2]["url"])
+        self.assertIn("recent_where", result["items"][3]["url"])
+        self.assertIn("recent_info", result["items"][4]["url"])
 
     def test_elementum_film_search_without_prowlarr(self):
         result = self.run_addon("recent_elementum", query={"identifier": "tt1234567"})
@@ -236,11 +237,11 @@ class PluginTests(unittest.TestCase):
 
     def test_cloudflare_menu_only_when_configured(self):
         plain = self.run_addon("recent_detail", query={"identifier": "tt1234567"})
-        self.assertNotIn("cloudflare_sources", " ".join(i["url"] for i in plain["items"]))
+        self.assertIn("cloudflare_sources", " ".join(i["url"] for i in plain["items"]))
         configured = self.run_addon(
             "recent_detail", query={"identifier": "tt1234567"},
             cloudflare_endpoint="https://example.workers.dev")
-        self.assertEqual(len(configured["items"]), len(plain["items"]) + 1)
+        self.assertEqual(len(configured["items"]), len(plain["items"]))
         self.assertIn("cloudflare_sources", configured["items"][0]["url"])
 
     def test_cloudflare_lists_source_and_hands_to_elementum(self):
