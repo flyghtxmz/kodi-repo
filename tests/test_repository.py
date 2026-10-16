@@ -55,7 +55,7 @@ class RepositoryTests(unittest.TestCase):
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
 
 class PluginTests(unittest.TestCase):
-    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, catalog_data=None):
+    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, catalog_data=None, cloudflare_endpoint=""):
         calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": []}
         xbmc = types.ModuleType("xbmc")
         xbmcaddon = types.ModuleType("xbmcaddon")
@@ -68,7 +68,7 @@ class PluginTests(unittest.TestCase):
                     raise RuntimeError("Elementum ausente")
 
             def getSetting(self, key):
-                return custom_url if key == "custom_url" else ""
+                return custom_url if key == "custom_url" else (cloudflare_endpoint if key == "cloudflare_endpoint" else "")
 
             def openSettings(self):
                 calls["settings"] += 1
@@ -116,6 +116,15 @@ class PluginTests(unittest.TestCase):
             "title": "Vídeo licenciado", "url": "https://archive.org/download/demo/clip.mp4",
             "plot": "Teste", "thumb": "https://archive.org/services/img/demo",
         }
+        cloudflare_stub = types.ModuleType("cloudflare_client")
+        cloudflare_stub.list_sources = lambda title, year="", imdb="": [{
+            "title": "Big Buck Bunny", "quality": "720p", "size": 1024,
+            "source": "Internet Archive", "seeders": None,
+            "language": "unknown",
+            "url": "https://archive.org/download/Bunny/Bunny_archive.torrent",
+        }]
+        cloudflare_stub.is_supported_source = lambda url: (
+            url == "https://archive.org/download/Bunny/Bunny_archive.torrent")
         recent_stub = types.ModuleType("recent")
         recent_stub.CATEGORIES = (
             ("movies_new", "Filmes de {year}"),
@@ -148,7 +157,7 @@ class PluginTests(unittest.TestCase):
         argv = ["plugin://plugin.video.flyghtxmz/", "15", "?" + urlencode(arguments) if arguments else ""]
         with patch.dict(sys.modules, {"xbmc": xbmc, "xbmcaddon": xbmcaddon, "xbmcgui": xbmcgui,
                                       "xbmcplugin": xbmcplugin, "catalog": catalog_stub,
-                                      "recent": recent_stub}):
+                                      "recent": recent_stub, "cloudflare_client": cloudflare_stub}):
             with patch.object(sys, "argv", argv):
                 runpy.run_path(str(ROOT / "src/plugin.video.flyghtxmz/default.py"), run_name="__main__")
         return calls
@@ -224,6 +233,31 @@ class PluginTests(unittest.TestCase):
                                 elementum_installed=False)
         self.assertFalse(result["commands"])
         self.assertEqual(result["dialogs"][0][0], "Elementum necessário")
+
+    def test_cloudflare_menu_only_when_configured(self):
+        plain = self.run_addon("recent_detail", query={"identifier": "tt1234567"})
+        self.assertNotIn("cloudflare_sources", " ".join(i["url"] for i in plain["items"]))
+        configured = self.run_addon(
+            "recent_detail", query={"identifier": "tt1234567"},
+            cloudflare_endpoint="https://example.workers.dev")
+        self.assertEqual(len(configured["items"]), len(plain["items"]) + 1)
+        self.assertIn("cloudflare_sources", configured["items"][0]["url"])
+
+    def test_cloudflare_lists_source_and_hands_to_elementum(self):
+        result = self.run_addon(
+            "cloudflare_sources",
+            query={"title": "Big Buck Bunny", "year": "2008", "identifier": "tt1254207"})
+        self.assertEqual(len(result["items"]), 1)
+        self.assertIn("cloudflare_play", result["items"][0]["url"])
+        video = self.run_addon("cloudflare_play", query={
+            "url": "https://archive.org/download/Bunny/Bunny_archive.torrent"})
+        self.assertEqual(len(video["commands"]), 1)
+        self.assertIn("plugin.video.elementum/play?uri=", video["commands"][0])
+
+    def test_cloudflare_rejects_untrusted_playback_links(self):
+        result = self.run_addon("cloudflare_play", query={
+            "url": "https://evil.example/Bad_archive.torrent"})
+        self.assertEqual(result["commands"], [])
 
     def test_recent_where_opens_provider_search(self):
         result = self.run_addon("recent_where", query={"identifier": "tt1234567", "media": "movie"})
