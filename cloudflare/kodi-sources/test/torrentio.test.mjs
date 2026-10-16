@@ -13,7 +13,7 @@ test("language is marked only for explicit metadata, not provider name",()=>{
   assert.equal(explicitLanguage("Carrie 1080p DUBLADO"),"pt-br");
   assert.equal(explicitLanguage("Carrie 1080p Dual Audio"),"pt-br");
   assert.equal(explicitLanguage("Carrie 1080p Português"),"pt-br");
-  assert.equal(explicitLanguage("Carrie 1080p [MicoLeaoDublado]".replace("Dublado]","Dublado]")),"pt-br");
+  assert.equal(explicitLanguage("Carrie 1080p [MicoLeaoDublado]"),"unknown");
   assert.equal(explicitLanguage("Carrie BluDV 1080p"),"unknown");
   assert.equal(explicitLanguage("Carrie 1080p English"),"other");
 });
