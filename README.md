@@ -61,3 +61,10 @@ A seleção de destaques utiliza identificadores pré-curados de filmes abertos 
 Novos menus **Filmes de 2026**, **Filmes do ano anterior**, **Filmes em alta**, **Séries recentes**, **Séries em alta**, e **Buscar lançamentos e séries**. O addon consulta o serviço público Cinemeta no momento de abrir cada seção (atualização dinâmica sem API key), com capas, sinopses e trailers fornecidos pelo Cinemeta. As fichas incluem link para busca de serviços oficiais na JustWatch Brasil (abertura via Chrome no Android TV se instalado), e trailers podem ser vistos com o addon oficial YouTube do Kodi.
 
 **A listagem de lançamentos é informativa**: não transmite obras comerciais nem oferece torrents ou fontes não autorizadas. A reprodução integral continua nas seções de licença aberta, resolvida automaticamente. Metadados podem incluir filmes anunciados ainda não lançados; o status deve ser verificado na plataforma distribuidora. O repositório continua 1.0.3.
+
+
+## Felipe Vídeos 1.3.2 — pesquisa direta no Elementum (sem Prowlarr)
+
+Abra um **filme** do catálogo de lançamentos e selecione **Pesquisar no Elementum (sem Prowlarr)**. O Felipe Vídeos envia automaticamente título e ano para a pesquisa do Elementum instalado no Kodi. A lista de resultados aparece na interface do próprio Elementum; ali o usuário pode escolher qual fonte reproduzir.
+
+Este caminho **não exige Prowlarr, Real-Debrid nem TorBox**. É necessário ter o Elementum habilitado e configurar provedores de busca no próprio Elementum. Não há garantia de que uma busca retorne fontes, nem de que contenham áudio PT-BR. A integração avançada com Prowlarr continua disponível como opção separada somente quando configurada. O repositório permanece 1.0.3 e o addon passa a 1.3.2.
