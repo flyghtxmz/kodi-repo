@@ -30,10 +30,11 @@ function norm(value) {
     .toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 }
 function quality(filename) {
-  if (/\b(2160p?|4k|uhd)\b/i.test(filename)) return "4K";
-  if (/\b1080p?\b/i.test(filename)) return "1080p";
-  if (/\b720p?\b/i.test(filename)) return "720p";
-  if (/\b480p?\b/i.test(filename)) return "480p";
+  // '_' também separa resolução em nomes de releases e vídeos do Archive.
+  if (/(?:^|[^a-z0-9])(2160p?|4k|uhd)(?=$|[^a-z0-9])/i.test(filename)) return "4K";
+  if (/(?:^|[^a-z0-9])1080p?(?=$|[^a-z0-9])/i.test(filename)) return "1080p";
+  if (/(?:^|[^a-z0-9])720p?(?=$|[^a-z0-9])/i.test(filename)) return "720p";
+  if (/(?:^|[^a-z0-9])480p?(?=$|[^a-z0-9])/i.test(filename)) return "480p";
   return "SD";
 }
 function licensed(value) {
