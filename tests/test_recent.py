@@ -42,6 +42,33 @@ class RecentCatalogTests(unittest.TestCase):
         self.assertEqual(titles[0]["id"], "tt1234567")
         self.assertFalse(more)
 
+    def test_list_titles_sorts_accented_titles_alphabetically(self):
+        infos = {"metas": [
+            {"id": "tt1234501", "name": "Zorro", "type": "movie"},
+            {"id": "tt1234502", "name": "Épico", "type": "movie"},
+            {"id": "tt1234503", "name": "Árvore", "type": "movie"},
+            {"id": "tt1234504", "name": "brilho", "type": "movie"},
+            {"id": "tt1234505", "name": "Amor", "type": "movie"},
+        ]}
+        with patch.object(REC, "fetch", return_value=infos):
+            for category in ("movies_new", "movies_popular", "series_popular", "search_movie"):
+                titles, more = REC.list_titles(
+                    category, search_term="am" if category == "search_movie" else "")
+                self.assertEqual([t["title"] for t in titles],
+                                 ["Amor", "Árvore", "brilho", "Épico", "Zorro"])
+                self.assertFalse(more)
+
+    def test_alphabetical_sorting_preserves_pagination(self):
+        data = {"metas": [
+            {"id": "tt1234501", "name": "Zorro"},
+            {"id": "tt1234502", "name": "Aventura"},
+        ]}
+        with patch.object(REC, "fetch", return_value=data) as fetch:
+            titles, _ = REC.list_titles("movies_prev", page=2, year=2026)
+        self.assertEqual([item["title"] for item in titles],
+                         ["Aventura", "Zorro"])
+        self.assertIn("skip=100", fetch.call_args.args[0])
+
     def test_search_query_is_encoded(self):
         with patch.object(REC, "fetch", return_value={"metas": []}) as fetch:
             REC.list_titles("search_movie", search_term="Avatar & Star", year=2026)
