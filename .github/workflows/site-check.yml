@@ -19,7 +19,7 @@ jobs:
           from zipfile import ZipFile
           from io import BytesIO
           root = "https://flyghtxmz.github.io/kodi-repo/"
-          paths = ["", "addons.xml", "addons.xml.md5", "repository.flyghtxmz-1.0.1.zip", "plugin.video.flyghtxmz/plugin.video.flyghtxmz-1.1.1.zip"]
+          paths = ["", "addons.xml", "addons.xml.md5", "repository.flyghtxmz-1.0.2.zip", "plugin.video.flyghtxmz/plugin.video.flyghtxmz-1.1.1.zip"]
           data = {}
           for path in paths:
               url = root + path
