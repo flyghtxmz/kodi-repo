@@ -17,12 +17,49 @@ MAX_SIZE = 2_000_000
 PAGES = 100
 PER_PAGE = 20
 CATEGORIES = (
-    ("movies_new", "Filmes de {year}"),
+    ("movies_new", "Lançamentos de {year}"),
     ("movies_prev", "Filmes de {prev_year}"),
     ("movies_popular", "Filmes em alta"),
+    ("movies_rating", "Mais bem avaliados (IMDb)"),
     ("series_new", "Séries de {year}"),
     ("series_popular", "Séries em alta"),
+    ("series_rating", "Mais bem avaliadas (IMDb)"),
 )
+
+# Gêneros confirmados pelo manifesto oficial Cinemeta; a URL usa os
+# identificadores originais do provedor, mas a interface fica em PT-BR.
+GENRES = (
+    ("action", "Ação", "Action"),
+    ("adventure", "Aventura", "Adventure"),
+    ("animation", "Animação", "Animation"),
+    ("comedy", "Comédia", "Comedy"),
+    ("crime", "Crime", "Crime"),
+    ("documentary", "Documentários", "Documentary"),
+    ("drama", "Drama", "Drama"),
+    ("family", "Família", "Family"),
+    ("fantasy", "Fantasia", "Fantasy"),
+    ("scifi", "Ficção científica", "Sci-Fi"),
+    ("horror", "Terror", "Horror"),
+    ("mystery", "Mistério", "Mystery"),
+    ("romance", "Romance", "Romance"),
+    ("thriller", "Suspense", "Thriller"),
+    ("history", "História", "History"),
+    ("sport", "Esportes", "Sport"),
+    ("war", "Guerra", "War"),
+)
+GENRE_CATEGORIES = tuple(
+    (media + "_genre_" + slug, label)
+    for media in ("movies", "series")
+    for slug, label, _ in GENRES
+) + (
+    ("series_genre_reality", "Reality shows"),
+    ("series_genre_talk", "Talk shows"),
+    ("series_genre_game", "Programas de competição"),
+)
+GENRE_LOOKUP = {slug: genre for slug, _, genre in GENRES}
+GENRE_LOOKUP.update({"reality": "Reality-TV", "talk": "Talk-Show",
+                     "game": "Game-Show"})
+
 
 
 def fetch(url):
@@ -53,7 +90,7 @@ def validate_id(identifier):
 
 
 def _url(media, catalog, extra=""):
-    if media not in ("movie", "series") or catalog not in ("top", "year"):
+    if media not in ("movie", "series") or catalog not in ("top", "year", "imdbRating"):
         raise ValueError("Parâmetros de catálogo inválidos.")
     addition = "/" + quote(extra, safe="=&%") if extra else ""
     return BASE + "/catalog/{}/{}{}.json".format(media, catalog, addition)
@@ -71,6 +108,14 @@ def _parts(category, year=None, query=None):
         return "series", "year", "genre={}".format(year)
     if category == "series_popular":
         return "series", "top", ""
+    if category in ("movies_rating", "series_rating"):
+        return ("movie" if category == "movies_rating" else "series"), "imdbRating", ""
+    for prefix, media in (("movies_genre_", "movie"), ("series_genre_", "series")):
+        if category.startswith(prefix):
+            slug = category[len(prefix):]
+            if slug not in GENRE_LOOKUP or (media == "movie" and slug in ("reality", "talk", "game")):
+                raise ValueError("Gênero desconhecido.")
+            return media, "top", "genre=" + quote(GENRE_LOOKUP[slug], safe="")
     if category in ("search_movie", "search_series"):
         if not query or not isinstance(query, str) or not query.strip():
             raise ValueError("Digite um título.")
@@ -146,6 +191,7 @@ def detail(identifier, media="movie"):
             trailer_id = candidate
             break
     value["trailer_id"] = trailer_id
+    value["original_title"] = value["title"]
     # Sempre apresenta sinopse PT-BR; em indisponibilidade, texto de fallback
     # em português, não a descrição original em inglês do Cinemeta.
     try:
@@ -155,6 +201,11 @@ def detail(identifier, media="movie"):
         value["plot"] = synopsis
         value["rating"] = rating
         value["rating_checked_at"] = checked_at
+        try:
+            from metadata_ptbr import localized_title
+            value["title"] = localized_title(identifier, media) or value["title"]
+        except (ImportError, OSError, ValueError, TypeError):
+            pass
     except (ImportError, OSError, ValueError, TypeError) as error:
         value["plot"] = "Sinopse em português (Brasil) ainda não disponível."
         value["rating_checked_at"] = None
