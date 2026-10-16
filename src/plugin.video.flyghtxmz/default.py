@@ -105,7 +105,7 @@ def show_recent_detail(identifier, media):
             add_item("Reproduzir automaticamente (PT-BR)", "recent_play", playable=True,
                      artwork=art, info=info, identifier=identifier)
         if media == "movie":
-            if ADDON.getSetting("cloudflare_endpoint").strip():
+            if True:  # A URL será descoberta pelo arquivo público endpoint.json.
                 add_item("Fontes abertas via Cloudflare", "cloudflare_sources",
                          folder=True, artwork=art, info=info, identifier=identifier,
                          title=movie["title"], year=str(movie.get("year") or "")[:4])
@@ -151,8 +151,8 @@ def show_cloudflare_sources(title, year="", imdb=""):
             type(error).__name__), xbmc.LOGERROR)
         xbmcgui.Dialog().ok(
             "Cloudflare",
-            "Não foi possível consultar o endpoint. Confira URL HTTPS e token "
-            "nas configurações do Felipe Vídeos.")
+            "Não foi possível consultar o endpoint. Verifique se o Worker já foi "
+            "publicado e se endpoint.json possui o endereço correto.")
     finish()
 
 
@@ -318,7 +318,7 @@ def show_catalog_options(identifier):
              artwork=art, info=info, identifier=identifier)
     add_item("Assistir via torrent autorizado (Elementum)", "catalog_open_torrent",
              artwork=art, info=info, identifier=identifier)
-    if ADDON.getSetting("cloudflare_endpoint").strip():
+    if True:  # A URL será descoberta pelo arquivo público endpoint.json.
         add_item("Fontes abertas via Cloudflare", "cloudflare_sources", folder=True,
                  artwork=art, info=info, title=movie["title"], year=movie["year"])
     finish()
