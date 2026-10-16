@@ -78,7 +78,7 @@ def show_recent(category, page=1, term=""):
         results, more = list_titles(category, page=page, search_term=term)
         for movie in results:
             info = {"title": movie["title"], "plot": movie["plot"] or "Consulte a ficha do título."}
-            match = re.match(r"^(\\d{4})", movie.get("year") or "")
+            match = re.match(r"^(\d{4})", movie.get("year") or "")
             if match:
                 info["year"] = int(match.group(1))
             art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
@@ -130,7 +130,7 @@ def show_recent_action(action, identifier, media):
     try:
         movie = detail(identifier, media=media)
         if action == "recent_info":
-            desc = "{} ({})\\n\\n{}\\n\\nNota IMDb: {}".format(
+            desc = "{} ({})\n\n{}\n\nNota IMDb: {}".format(
                 movie["title"], movie["year"], movie["plot"] or "Sem sinopse",
                 movie["rating"] or "Indisponível")
             xbmcgui.Dialog().textviewer(movie["title"], desc)
@@ -150,7 +150,7 @@ def show_recent_action(action, identifier, media):
         elif action == "recent_where":
             url = justwatch_search_url(movie["title"])
             answer = xbmcgui.Dialog().yesno("Onde assistir — Brasil",
-                "Abrir pesquisa no navegador Chrome da TV Box?\\n\\n"
+                "Abrir pesquisa no navegador Chrome da TV Box?\n\n"
                 "A disponibilidade e o preço são informados pelo serviço externo.")
             if answer:
                 xbmc.executebuiltin("StartAndroidActivity(com.android.chrome,android.intent.action.VIEW,,{})".format(url))

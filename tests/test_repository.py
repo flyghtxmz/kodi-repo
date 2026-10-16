@@ -96,6 +96,15 @@ class PluginTests(unittest.TestCase):
             def input(self, *args, **kwargs):
                 return magnet_input
 
+            def select(self, title, options):
+                return 0
+
+            def yesno(self, title, message):
+                return True
+
+            def textviewer(self, title, content):
+                calls["dialogs"].append((title, content))
+
         catalog_stub = types.ModuleType("catalog")
         catalog_stub.CATEGORIES = (
             ("destaques", "Mais populares"), ("filmes", "Filmes"),
@@ -107,6 +116,24 @@ class PluginTests(unittest.TestCase):
             "title": "Vídeo licenciado", "url": "https://archive.org/download/demo/clip.mp4",
             "plot": "Teste", "thumb": "https://archive.org/services/img/demo",
         }
+        recent_stub = types.ModuleType("recent")
+        recent_stub.CATEGORIES = (
+            ("movies_new", "Filmes de {year}"),
+            ("movies_prev", "Filmes de {prev_year}"),
+            ("movies_popular", "Filmes em alta"),
+            ("series_new", "Séries de {year}"),
+            ("series_popular", "Séries em alta"),
+        )
+        recent_stub.list_titles = lambda **kwargs: ([{
+            "id":"tt1234567", "type":"movie", "title":"Movie Recent",
+            "year":"2026", "plot":"Sinopse", "poster":"https://example.org/poster.jpg",
+        }], False)
+        recent_stub.detail = lambda ident, media="movie": {
+            "id": ident, "type": media, "title": "Movie Recent",
+            "year": "2026", "plot": "Sinopse", "rating": "7.5",
+            "poster": "https://example.org/poster.jpg", "trailer_id": "ZkN2M4ODdys",
+        }
+        recent_stub.justwatch_search_url = lambda title: "https://www.justwatch.com/br/busca?q=Movie+Recent"
         xbmcaddon.Addon = Addon
         xbmc.executebuiltin = calls["commands"].append
         xbmcgui.INPUT_ALPHANUM = 0
@@ -120,25 +147,27 @@ class PluginTests(unittest.TestCase):
         arguments.update(query or {})
         argv = ["plugin://plugin.video.flyghtxmz/", "15", "?" + urlencode(arguments) if arguments else ""]
         with patch.dict(sys.modules, {"xbmc": xbmc, "xbmcaddon": xbmcaddon, "xbmcgui": xbmcgui,
-                                      "xbmcplugin": xbmcplugin, "catalog": catalog_stub}):
+                                      "xbmcplugin": xbmcplugin, "catalog": catalog_stub,
+                                      "recent": recent_stub}):
             with patch.object(sys, "argv", argv):
                 runpy.run_path(str(ROOT / "src/plugin.video.flyghtxmz/default.py"), run_name="__main__")
         return calls
 
     def test_menu_without_custom_video(self):
         result = self.run_addon()
-        self.assertEqual(len(result["items"]), 14)
+        self.assertEqual(len(result["items"]), 21)
         self.assertEqual(len(result["ends"]), 1)
-        self.assertTrue(result["items"][11]["listitem"].properties.get("IsPlayable"))
+        self.assertTrue(result["items"][18]["listitem"].properties.get("IsPlayable"))
 
     def test_menu_with_custom_video(self):
         result = self.run_addon(custom_url="https://example.com/test.mp4")
-        self.assertEqual(len(result["items"]), 15)
+        self.assertEqual(len(result["items"]), 22)
 
     def test_catalog_shows_directories_and_search(self):
         result = self.run_addon()
-        self.assertTrue(all(result["items"][index]["isFolder"] for index in range(6)))
-        self.assertIn("action=search", result["items"][6]["url"])
+        self.assertTrue(all(result["items"][index]["isFolder"] for index in range(5)))
+        self.assertTrue(all(result["items"][index]["isFolder"] for index in range(7, 13)))
+        self.assertIn("action=search", result["items"][13]["url"])
 
     def test_catalog_lists_playable_items_with_cover(self):
         entry = {"identifier": "demo_id", "title": "Vídeo licenciado", "plot": "Sinopse",
@@ -161,6 +190,37 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(len(result["commands"]), 1)
         self.assertIn("category=busca", result["commands"][0])
         self.assertIn("Open+Film", result["commands"][0])
+
+    def test_recent_menu_uses_dynamic_sections(self):
+        result = self.run_addon()
+        self.assertIn("Filmes de", result["items"][0]["listitem"].label)
+        self.assertIn("action=recent", result["items"][0]["url"])
+        self.assertIn("action=recent_search", result["items"][5]["url"])
+
+    def test_recent_list_has_poster_and_details(self):
+        result = self.run_addon("recent", query={"category": "movies_new"})
+        self.assertEqual(len(result["items"]), 1)
+        self.assertTrue(result["items"][0]["isFolder"])
+        self.assertIn("tt1234567", result["items"][0]["url"])
+        self.assertEqual(result["items"][0]["listitem"].info["year"], 2026)
+
+    def test_recent_details_offer_trailer_and_watch_options(self):
+        result = self.run_addon("recent_detail", query={"identifier": "tt1234567", "media": "movie"})
+        self.assertEqual(len(result["items"]), 3)
+        self.assertIn("recent_trailer", result["items"][0]["url"])
+        self.assertIn("recent_where", result["items"][1]["url"])
+        self.assertIn("recent_info", result["items"][2]["url"])
+
+    def test_recent_where_opens_provider_search(self):
+        result = self.run_addon("recent_where", query={"identifier": "tt1234567", "media": "movie"})
+        self.assertEqual(len(result["commands"]), 1)
+        self.assertIn("StartAndroidActivity(com.android.chrome", result["commands"][0])
+
+    def test_recent_search_uses_keyboard(self):
+        result = self.run_addon("recent_search", magnet_input="Avatar")
+        self.assertEqual(len(result["commands"]), 1)
+        self.assertIn("search_movie", result["commands"][0])
+        self.assertIn("Avatar", result["commands"][0])
 
     def test_demo_playback(self):
         result = self.run_addon("demo")
