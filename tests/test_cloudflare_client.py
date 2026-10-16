@@ -62,7 +62,7 @@ class CloudflareClientTests(unittest.TestCase):
                     "https://archive.org.evil.example/download/x/x_archive.torrent"):
             self.assertFalse(self.client.is_supported_source(url))
 
-    def test_bearer_token_sent_as_header_not_url(self):
+    def test_no_credentials_exposed_in_public_request(self):
         example = {
             "verified_license": True, "source": "Internet Archive",
             "title": "Big Buck Bunny", "quality": "1080p",
@@ -81,7 +81,7 @@ class CloudflareClientTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["seeders"], None)
         self.assertIn("/v1/sources", seen["url"])
-        self.assertEqual(seen["headers"]["Authorization"], "Bearer test-token")
+        self.assertNotIn("Authorization", seen["headers"])
         self.assertNotIn("test-token", str(seen["params"]))
         self.assertNotIn("test-token", seen["url"])
 
