@@ -20,11 +20,17 @@ jobs:
             "/meta/movie/tmdb:969681.json",
             "/meta/movie/tt0074285.json",
             "/meta/series/tmdb:1399.json",
-            "/catalog/movie/top/genre=Horror.json",
+            "/catalog/movie/tmdb.top/genre=Horror.json",
+            "/catalog/movie/tmdb.top/genre=Action.json",
+            "/catalog/movie/tmdb.trending.json",
+            "/catalog/movie/tmdb.latest.json",
+            "/catalog/movie/tmdb.language/genre=pt-BR.json",
             "/catalog/movie/top/genre=Action.json",
-            "/catalog/series/top/genre=Crime.json",
-            "/catalog/movie/top/genre=Documentary.json",
-            "/catalog/movie/year/genre=2026.json",
+            "/catalog/series/tmdb.top/genre=Crime.json",
+            "/catalog/series/tmdb.latest.json",
+            "/catalog/series/tmdb.trending.json",
+            "/catalog/movie/tmdb.top/genre=Documentary.json",
+            "/catalog/movie/tmdb.year/genre=2026.json",
           ]
           for route in routes:
             try:
@@ -34,7 +40,7 @@ jobs:
                 raw=response.read(600000)
                 payload=json.loads(raw)
                 if route=="/manifest.json":
-                  print("MANIFEST",[(x.get("id"),x.get("type"),x.get("name")) for x in payload.get("catalogs",[])[:14]])
+                  print("MANIFEST",[(x.get("id"),x.get("type"),x.get("name"),x.get("extra")) for x in payload.get("catalogs",[])[:14]])
                 if route.startswith("/meta/"):
                   m=payload.get("meta") or {}
                   print("DETAIL",route,{"id":m.get("id"),"imdb_id":m.get("imdb_id"),"name":m.get("name"),"description":str(m.get("description",""))[:170],"keys":list(m.keys())[:35]})
