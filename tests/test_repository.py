@@ -206,10 +206,24 @@ class PluginTests(unittest.TestCase):
 
     def test_recent_details_offer_trailer_and_watch_options(self):
         result = self.run_addon("recent_detail", query={"identifier": "tt1234567", "media": "movie"})
-        self.assertEqual(len(result["items"]), 3)
-        self.assertIn("recent_trailer", result["items"][0]["url"])
-        self.assertIn("recent_where", result["items"][1]["url"])
-        self.assertIn("recent_info", result["items"][2]["url"])
+        self.assertEqual(len(result["items"]), 4)
+        self.assertIn("recent_elementum", result["items"][0]["url"])
+        self.assertIn("recent_trailer", result["items"][1]["url"])
+        self.assertIn("recent_where", result["items"][2]["url"])
+        self.assertIn("recent_info", result["items"][3]["url"])
+
+    def test_elementum_film_search_without_prowlarr(self):
+        result = self.run_addon("recent_elementum", query={"identifier": "tt1234567"})
+        self.assertEqual(len(result["commands"]), 1)
+        self.assertIn("plugin.video.elementum/search?q=Movie+Recent+2026",
+                      result["commands"][0])
+
+    def test_elementum_film_search_without_elementum_installed(self):
+        result = self.run_addon("recent_elementum",
+                                query={"identifier": "tt1234567"},
+                                elementum_installed=False)
+        self.assertFalse(result["commands"])
+        self.assertEqual(result["dialogs"][0][0], "Elementum necessário")
 
     def test_recent_where_opens_provider_search(self):
         result = self.run_addon("recent_where", query={"identifier": "tt1234567", "media": "movie"})
