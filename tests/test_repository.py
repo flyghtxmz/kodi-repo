@@ -5,6 +5,7 @@ import runpy
 import sys
 import types
 import unittest
+from urllib.parse import urlencode
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
@@ -54,7 +55,7 @@ class RepositoryTests(unittest.TestCase):
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
 
 class PluginTests(unittest.TestCase):
-    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True):
+    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, catalog_data=None):
         calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": []}
         xbmc = types.ModuleType("xbmc")
         xbmcaddon = types.ModuleType("xbmcaddon")
@@ -76,9 +77,17 @@ class PluginTests(unittest.TestCase):
             def __init__(self, label="", path=""):
                 self.label, self.path = label, path
                 self.properties = {}
+                self.art = {}
+                self.info = {}
 
             def setProperty(self, key, val):
                 self.properties[key] = val
+
+            def setArt(self, artwork):
+                self.art.update(artwork)
+
+            def setInfo(self, media_type, data):
+                self.info.update(data)
 
         class Dialog:
             def ok(self, title, message):
@@ -87,6 +96,17 @@ class PluginTests(unittest.TestCase):
             def input(self, *args, **kwargs):
                 return magnet_input
 
+        catalog_stub = types.ModuleType("catalog")
+        catalog_stub.CATEGORIES = (
+            ("destaques", "Mais populares"), ("filmes", "Filmes"),
+            ("series", "Séries e programas"), ("documentarios", "Documentários"),
+            ("animacoes", "Animações"), ("curtas", "Curtas-metragens"),
+        )
+        catalog_stub.search = lambda **kwargs: (catalog_data if catalog_data is not None else [], False)
+        catalog_stub.playback = lambda identifier: {
+            "title": "Vídeo licenciado", "url": "https://archive.org/download/demo/clip.mp4",
+            "plot": "Teste", "thumb": "https://archive.org/services/img/demo",
+        }
         xbmcaddon.Addon = Addon
         xbmc.executebuiltin = calls["commands"].append
         xbmcgui.INPUT_ALPHANUM = 0
@@ -96,21 +116,51 @@ class PluginTests(unittest.TestCase):
         xbmcplugin.setContent = lambda *args: None
         xbmcplugin.endOfDirectory = lambda *args, **kwargs: calls["ends"].append(True)
         xbmcplugin.setResolvedUrl = lambda *args: calls["resolved"].append(args)
-        argv = ["plugin://plugin.video.flyghtxmz/", "15", ("?action=" + action) if action else ""]
-        with patch.dict(sys.modules, {"xbmc": xbmc, "xbmcaddon": xbmcaddon, "xbmcgui": xbmcgui, "xbmcplugin": xbmcplugin}):
+        arguments = {"action": action} if action else {}
+        arguments.update(query or {})
+        argv = ["plugin://plugin.video.flyghtxmz/", "15", "?" + urlencode(arguments) if arguments else ""]
+        with patch.dict(sys.modules, {"xbmc": xbmc, "xbmcaddon": xbmcaddon, "xbmcgui": xbmcgui,
+                                      "xbmcplugin": xbmcplugin, "catalog": catalog_stub}):
             with patch.object(sys, "argv", argv):
                 runpy.run_path(str(ROOT / "src/plugin.video.flyghtxmz/default.py"), run_name="__main__")
         return calls
 
     def test_menu_without_custom_video(self):
         result = self.run_addon()
-        self.assertEqual(len(result["items"]), 7)
+        self.assertEqual(len(result["items"]), 14)
         self.assertEqual(len(result["ends"]), 1)
-        self.assertTrue(result["items"][4]["listitem"].properties.get("IsPlayable"))
+        self.assertTrue(result["items"][11]["listitem"].properties.get("IsPlayable"))
 
     def test_menu_with_custom_video(self):
         result = self.run_addon(custom_url="https://example.com/test.mp4")
-        self.assertEqual(len(result["items"]), 8)
+        self.assertEqual(len(result["items"]), 15)
+
+    def test_catalog_shows_directories_and_search(self):
+        result = self.run_addon()
+        self.assertTrue(all(result["items"][index]["isFolder"] for index in range(6)))
+        self.assertIn("action=search", result["items"][6]["url"])
+
+    def test_catalog_lists_playable_items_with_cover(self):
+        entry = {"identifier": "demo_id", "title": "Vídeo licenciado", "plot": "Sinopse",
+                 "thumb": "https://archive.org/services/img/demo_id", "year": "2008"}
+        result = self.run_addon("catalog", query={"category": "destaques"},
+                                catalog_data=[entry])
+        self.assertEqual(len(result["items"]), 1)
+        video = result["items"][0]["listitem"]
+        self.assertEqual(video.info["title"], "Vídeo licenciado")
+        self.assertTrue(video.properties.get("IsPlayable"))
+        self.assertEqual(video.art["thumb"], entry["thumb"])
+
+    def test_catalog_plays_resolved_video_without_user_url(self):
+        result = self.run_addon("catalog_play", query={"identifier": "demo"})
+        self.assertEqual(result["resolved"][0][1], True)
+        self.assertIn("archive.org/download", result["resolved"][0][2].path)
+
+    def test_search_opens_catalog_using_user_title(self):
+        result = self.run_addon("search", magnet_input="Open Film")
+        self.assertEqual(len(result["commands"]), 1)
+        self.assertIn("category=busca", result["commands"][0])
+        self.assertIn("Open+Film", result["commands"][0])
 
     def test_demo_playback(self):
         result = self.run_addon("demo")
