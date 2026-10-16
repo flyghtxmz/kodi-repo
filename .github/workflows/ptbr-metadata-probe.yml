@@ -21,7 +21,7 @@ jobs:
           node <<'JS'
           const z=require('lz-string');
           const https=require('node:https');
-          const base='https://94c8cb9f702d-tmdb-addon.baby-beamup.club';
+          const base='https://tmdb.elfhosted.com';
           const cfg=z.compressToEncodedURIComponent(JSON.stringify({language:'pt-BR'}));
           console.log('ENCODED_CONFIG',cfg);
           function fetch(url){
