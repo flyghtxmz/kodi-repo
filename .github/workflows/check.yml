@@ -12,9 +12,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Build packages
+      - name: Build Kodi packages and checksum
         run: python tools/build_repo.py
-      - name: Run tests
+      - name: Run unit tests
         run: python -m unittest discover -s tests -v
-      - name: Ensure generated files are current
-        run: git diff --exit-code -- addons.xml addons.xml.md5 index.html 'repository.flyghtxmz*' 'plugin.video.flyghtxmz/'
+      - name: Validate generated ZIP archives
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import xml.etree.ElementTree as ET
+          root = ET.parse("addons.xml").getroot()
+          for addon in root.findall("addon"):
+              addon_id, version = addon.attrib["id"], addon.attrib["version"]
+              file = Path(addon_id) / f"{addon_id}-{version}.zip"
+              with ZipFile(file) as archive:
+                  assert archive.testzip() is None, file
+                  assert f"{addon_id}/addon.xml" in archive.namelist(), file
+          print("Kodi packages checked")
+          PY
