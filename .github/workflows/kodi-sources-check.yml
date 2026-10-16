@@ -1,0 +1,20 @@
+name: Verify Cloudflare Kodi Sources API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/kodi-sources/**'
+      - '.github/workflows/kodi-sources-check.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test Worker with simulated Internet Archive
+        run: node --test cloudflare/kodi-sources/test/worker.test.mjs
