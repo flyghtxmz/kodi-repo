@@ -6,6 +6,7 @@ instalado no mesmo Kodi. O buffer e o armazenamento pertencem ao Elementum.
 
 import re
 import sys
+import unicodedata
 from datetime import date
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -65,6 +66,17 @@ def show_sections(media):
         if category.startswith(prefix):
             add_item(title.format(year=year, prev_year=year-1), "recent",
                      folder=True, category=category)
+    add_item("Gêneros", "genres", folder=True, media=media)
+    finish()
+
+
+def show_genres(media):
+    from recent import GENRE_CATEGORIES
+    prefix = "series_genre_" if media == "series" else "movies_genre_"
+    xbmcplugin.setContent(HANDLE, "videos")
+    for category, label in GENRE_CATEGORIES:
+        if category.startswith(prefix):
+            add_item(label, "recent", folder=True, category=category)
     finish()
 
 
@@ -83,25 +95,36 @@ def show_recent(category, page=1, term=""):
     xbmcplugin.setContent(HANDLE, "tvshows" if category.startswith("series_") or category == "search_series" else "movies")
     try:
         results, more = list_titles(category, page=page, search_term=term)
-        # Sinopses PT-BR ficam no painel da capa, não no popup de opções.
-        # O cache evita novas consultas em visitas seguintes ao catálogo.
+        # Busca nomes e sinopses em PT-BR juntos; preserva IDs IMDb.
         from metadata_ptbr import descriptions_for_catalog, FALLBACK_SYNOPSIS
         try:
-            synopses = descriptions_for_catalog(results)
+            localized = descriptions_for_catalog(results, include_titles=True)
         except (OSError, ValueError, TypeError) as error:
-            xbmc.log("Felipe Vídeos: cache de sinopses indisponível ({})".format(
+            xbmc.log("Felipe Vídeos: cache PT-BR indisponível ({})".format(
                 type(error).__name__), xbmc.LOGWARNING)
-            synopses = {}
+            localized = {}
+        rendered = []
         for movie in results:
-            cache_key = "{}:{}".format(movie["type"], movie["id"])
-            info = {"title": movie["title"],
-                    "plot": synopses.get(cache_key, FALLBACK_SYNOPSIS)}
+            key = "{}:{}".format(movie["type"], movie["id"])
+            entry = localized.get(key, {})
+            if isinstance(entry, str):
+                entry = {"plot": entry}
+            title_ptbr = (entry.get("title") or movie["title"]).strip()
+            plot_ptbr = entry.get("plot") or FALLBACK_SYNOPSIS
+            rendered.append((title_ptbr, plot_ptbr, movie))
+
+        def az(row):
+            value = unicodedata.normalize("NFKD", row[0].casefold())
+            return ("".join(char for char in value if not unicodedata.combining(char)),
+                    row[2]["id"])
+        rendered.sort(key=az)
+        for title_ptbr, plot_ptbr, movie in rendered:
+            info = {"title": title_ptbr, "plot": plot_ptbr}
             match = re.match(r"^(\d{4})", movie.get("year") or "")
             if match:
                 info["year"] = int(match.group(1))
             art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
-            # Clique direto chama o popup, sem criar mais uma pasta de opções.
-            add_item(movie["title"], "recent_detail", folder=False, artwork=art, info=info,
+            add_item(title_ptbr, "recent_detail", folder=False, artwork=art, info=info,
                      identifier=movie["id"], media=movie["type"])
         if more:
             add_item("Próxima página >>", "recent", folder=True, category=category,
@@ -132,8 +155,8 @@ def show_recent_detail(identifier, media):
             return
         action = options[index][1]
         if action == "sources":
-            choose_cloudflare_source(movie["title"], str(movie.get("year") or "")[:4],
-                                     identifier)
+            choose_cloudflare_source(movie.get("original_title") or movie["title"],
+                                     str(movie.get("year") or "")[:4], identifier)
         else:
             perform_recent_action(action, movie)
     except Exception as exc:
@@ -356,6 +379,8 @@ def main():
     action = params.get("action", [""])[0]
     if action == "sections":
         show_sections(params.get("media", ["movie"])[0])
+    elif action == "genres":
+        show_genres(params.get("media", ["movie"])[0])
     elif action == "tools":
         show_tools()
     elif action == "recent":
