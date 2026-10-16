@@ -1,13 +1,20 @@
 # Felipe Addons — Kodi
 
-Repositório independente de addons Kodi 19+ (Python 3).
+Fonte Kodi no GitHub Pages: https://flyghtxmz.github.io/kodi-repo/
 
-O instalador `repository.flyghtxmz-1.0.0.zip` permite instalar o repositório **Felipe Addons** pelo Kodi, após habilitar o GitHub Pages em **Settings > Pages**, publicação da branch `main` na pasta `/ (root)`.
+No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.0.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
 
-**Endereço no Kodi (Add Source):** https://flyghtxmz.github.io/kodi-repo/
+## Felipe Vídeos 1.1.0 (Kodi 21.2 Omega)
 
-Depois em **Add-ons > Install from zip file**, instale o repositório e em **Install from repository** escolha o addon **Felipe Vídeos**.
+- Reprodução de URL direta de vídeo, com clipe de teste CC0.
+- Digitação/colagem de magnet link (`magnet:?xt=urn:btih:...`) ou URL HTTP(S) terminada em `.torrent`.
+- Encaminhamento da reprodução ao **Elementum instalado separadamente** na TV Box (não é incluído no ZIP).
+- Atalho para abrir as configurações do Elementum, que controla buffer, armazenamento e limpeza.
 
-O addon Felipe Vídeos fornece um vídeo demonstrativo e a opção de abrir uma URL própria. Use apenas conteúdos autorizados.
+**Dependência opcional:** instale e configure o Elementum seguindo https://elementumorg.github.io/getting-started/installation/ e abra-o uma vez antes de usar torrents. A versão 1.1.0 não procura torrents, não oferece catálogos de filmes, não controla o buffer por conta própria e não contém motor BitTorrent.
 
-Para reconstruir os pacotes: `python tools/build_repo.py`. Testes: `python -m unittest discover -s tests -v`.
+**Privacidade:** BitTorrent pode compartilhar dados com outros peers e expor o endereço IP público. Utilize somente conteúdos cuja distribuição é autorizada.
+
+## Manutenção
+
+Rode `python tools/build_repo.py` para gerar ZIPs, `addons.xml` e `addons.xml.md5`, e `python -m unittest discover -s tests -v` para os testes. O workflow `Publish Kodi addon packages` recompila e publica os artefatos a cada alteração do código-fonte.

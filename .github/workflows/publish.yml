@@ -1,0 +1,38 @@
+name: Publish Kodi addon packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'tools/build_repo.py'
+      - '.github/workflows/publish.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Rebuild Kodi packages and checksum
+        run: python tools/build_repo.py
+      - name: Run Kodi addon tests
+        run: python -m unittest discover -s tests -v
+      - name: Commit generated repository artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add addons.xml addons.xml.md5 index.html repository.flyghtxmz-1.0.0.zip repository.flyghtxmz/ plugin.video.flyghtxmz/
+          if ! git diff --cached --quiet; then
+            git commit -m "Build Felipe Vídeos 1.1.0 and update Kodi index"
+            git push
+          fi
