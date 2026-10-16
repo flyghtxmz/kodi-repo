@@ -155,8 +155,10 @@ def show_recent_detail(identifier, media):
             return
         action = options[index][1]
         if action == "sources":
+            # O ID TMDb não é um identificador IMDb: evite enviá-lo ao Worker.
             choose_cloudflare_source(movie.get("original_title") or movie["title"],
-                                     str(movie.get("year") or "")[:4], identifier)
+                                     str(movie.get("year") or "")[:4],
+                                     movie.get("imdb_id") or "")
         else:
             perform_recent_action(action, movie)
     except Exception as exc:
