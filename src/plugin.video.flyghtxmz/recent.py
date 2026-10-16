@@ -15,7 +15,7 @@ YOUTUBE_ID = re.compile(r"^[a-zA-Z0-9_-]{11}$")
 MAX_SIZE = 2_000_000
 PAGES = 100
 PER_PAGE = 20
-CATEGORIES = (
+ALL_CATEGORIES = (
     ("movies_new", "Lançamentos de {year}"),
     ("movies_prev", "Filmes de {prev_year}"),
     ("movies_popular", "Filmes em alta"),
@@ -51,6 +51,11 @@ CATEGORIES = (
     ("series_thriller", "Suspense"),
     ("series_reality", "Reality shows"),
 )
+CATEGORIES = tuple((category, label) for category, label in ALL_CATEGORIES
+                   if category.split("_", 1)[1] in ("new", "prev", "popular", "best_rated"))
+GENRE_CATEGORIES = tuple((category, label) for category, label in ALL_CATEGORIES
+                         if category.split("_", 1)[1] not in
+                         ("new", "prev", "popular", "best_rated"))
 GENRE_CODES = {
     "action":"Action", "adventure":"Adventure", "animation":"Animation",
     "comedy":"Comedy", "crime":"Crime", "documentary":"Documentary",
@@ -99,7 +104,7 @@ def _parts(category, year=None, query=None):
             raise ValueError("Digite um título.")
         media = "movie" if category == "search_movie" else "series"
         return media, "top", "search=" + quote(query.strip()[:80], safe="")
-    if category not in {name for name, _ in CATEGORIES}:
+    if category not in {name for name, _ in ALL_CATEGORIES}:
         raise ValueError("Categoria desconhecida.")
     media = "movie" if category.startswith("movies_") else "series"
     suffix = category.split("_", 1)[1]
