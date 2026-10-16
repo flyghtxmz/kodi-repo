@@ -89,17 +89,18 @@ def _valid_rating(value):
     return value if RATING.fullmatch(value) else ""
 
 
-def _read_ptbr_description(identifier, media, timeout=9):
-    if not IMDB_ID.fullmatch(identifier) or media not in ("movie", "series"):
+def _read_ptbr_details(identifier, media, timeout=9):
+    """Consulta uma única vez título localizado e sinopse usando IMDb ID."""
+    if not IMDB_ID.fullmatch(identifier or "") or media not in ("movie", "series"):
         raise ValueError("Parâmetros de metadados inválidos.")
     address = "{}/meta/{}/{}.json".format(TMDB_STREMIO_BASE, media, identifier)
     request = Request(address, headers={
-        "User-Agent": "FelipeVideosKodi/1.3.8 (metadata)",
+        "User-Agent": "FelipeVideosKodi/1.3.9 (metadata)",
         "Accept": "application/json",
     })
     with urlopen(request, timeout=timeout) as response:
         if response.status != 200:
-            raise ValueError("Resposta não autorizada para sinopse.")
+            raise ValueError("Resposta inválida para metadados PT-BR.")
         raw = response.read(MAX_RESPONSE_BYTES + 1)
     if len(raw) > MAX_RESPONSE_BYTES:
         raise ValueError("Metadados ultrapassaram o limite.")
@@ -107,11 +108,32 @@ def _read_ptbr_description(identifier, media, timeout=9):
     meta = payload.get("meta") if isinstance(payload, dict) else None
     if not isinstance(meta, dict):
         raise ValueError("Metadados inválidos.")
-    source_id = meta.get("imdb_id") or meta.get("id")
-    if source_id != identifier:
+    if (meta.get("imdb_id") or meta.get("id")) != identifier:
         raise ValueError("Metadados retornaram outro título.")
     overview = meta.get("description")
-    return " ".join(overview.split())[:1600] if isinstance(overview, str) else ""
+    title = meta.get("name")
+    return {
+        "plot": " ".join(overview.split())[:1600] if isinstance(overview, str) else "",
+        "title": " ".join(title.split())[:160] if isinstance(title, str) else "",
+    }
+
+
+def _read_ptbr_description(identifier, media, timeout=9):
+    """Mantido para compatibilidade com os testes e o cache de sinopses."""
+    return _read_ptbr_details(identifier, media, timeout=timeout)["plot"]
+
+
+def localized_title(identifier, media):
+    """Devolve tradução em cache sem rede; preserva o ID original do IMDb."""
+    if not isinstance(identifier, str) or not IMDB_ID.fullmatch(identifier):
+        return ""
+    if media not in ("movie", "series"):
+        return ""
+    entry = _read_cache().get("{}:{}".format(media, identifier), {})
+    if not isinstance(entry, dict):
+        return ""
+    title = entry.get("localized_title")
+    return title if isinstance(title, str) else ""
 
 
 def enrich(identifier, media, imdb_rating="", now=None):
@@ -166,7 +188,7 @@ def enrich(identifier, media, imdb_rating="", now=None):
 
 
 
-def descriptions_for_catalog(items, now=None):
+def descriptions_for_catalog(items, now=None, include_titles=False):
     """Preenche a sinopse no painel do Kodi ao listar filmes e séries.
 
     Usa cache de sete dias; somente descrições ausentes/vencidas são
@@ -190,23 +212,32 @@ def descriptions_for_catalog(items, now=None):
             entry = {}
         description = entry.get("description")
         description = description if isinstance(description, str) else ""
-        plots[key] = description or FALLBACK_SYNOPSIS
+        localized = entry.get("localized_title") if isinstance(entry.get("localized_title"), str) else ""
+        plots[key] = ({"plot": description or FALLBACK_SYNOPSIS, "title": localized}
+                      if include_titles else description or FALLBACK_SYNOPSIS)
         checked = float(entry.get("description_checked_at") or 0)
         attempt = float(entry.get("description_attempt_at") or 0)
+        title_attempt = float(entry.get("title_attempt_at") or 0)
         stale = not description or checked <= 0 or current - checked >= DESCRIPTION_TTL or checked > current
         may_retry = attempt <= 0 or current - attempt >= RETRY_TTL or attempt > current
-        if stale and may_retry:
+        # Metadados do cache anterior (somente sinopse) precisam de uma nova
+        # consulta única para buscar o título PT-BR.
+        title_missing = include_titles and not localized
+        title_can_retry = title_attempt <= 0 or current - title_attempt >= RETRY_TTL or title_attempt > current
+        if (stale and may_retry) or (title_missing and title_can_retry):
             pending.append((key, identifier, media))
 
     if not pending:
         return plots
 
     def fetch_one(identifier, media):
-        # Timeout curto para que uma fonte lenta não bloqueie o catálogo.
+        # Uma requisição por título devolve nome PT-BR e sinopse simultaneamente.
         try:
+            if include_titles:
+                return _read_ptbr_details(identifier, media, timeout=3)
             return _read_ptbr_description(identifier, media, timeout=3)
         except (OSError, TimeoutError, ValueError, TypeError, UnicodeError):
-            return ""
+            return {"plot": "", "title": ""} if include_titles else ""
 
     with ThreadPoolExecutor(max_workers=min(8, len(pending))) as executor:
         jobs = {executor.submit(fetch_one, identifier, media): key
@@ -217,13 +248,26 @@ def descriptions_for_catalog(items, now=None):
             if not isinstance(entry, dict):
                 entry = {}
             entry["description_attempt_at"] = current
+            if include_titles:
+                entry["title_attempt_at"] = current
             try:
-                description = job.result()
+                result = job.result()
             except Exception:
-                description = ""
+                result = {"plot": "", "title": ""} if include_titles else ""
+            if include_titles:
+                description = result.get("plot", "")
+                ptbr_title = result.get("title", "")
+                if ptbr_title:
+                    entry["localized_title"] = ptbr_title
+            else:
+                description = result
             if description:
                 entry["description"] = description
                 entry["description_checked_at"] = current
+            if include_titles:
+                plots[key] = {"plot": entry.get("description") or FALLBACK_SYNOPSIS,
+                              "title": entry.get("localized_title") or ""}
+            elif description:
                 plots[key] = description
             cache[key] = entry
     _write_cache(cache)
