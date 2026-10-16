@@ -68,3 +68,18 @@ Novos menus **Filmes de 2026**, **Filmes do ano anterior**, **Filmes em alta**, 
 Abra um **filme** do catálogo de lançamentos e selecione **Pesquisar no Elementum (sem Prowlarr)**. O Felipe Vídeos envia automaticamente título e ano para a pesquisa do Elementum instalado no Kodi. A lista de resultados aparece na interface do próprio Elementum; ali o usuário pode escolher qual fonte reproduzir.
 
 Este caminho **não exige Prowlarr, Real-Debrid nem TorBox**. É necessário ter o Elementum habilitado e configurar provedores de busca no próprio Elementum. Não há garantia de que uma busca retorne fontes, nem de que contenham áudio PT-BR. A integração avançada com Prowlarr continua disponível como opção separada somente quando configurada. O repositório permanece 1.0.3 e o addon passa a 1.3.2.
+
+
+## Felipe Vídeos 1.3.3 — API Cloudflare Sources (opcional)
+
+O addon aceita um Worker Cloudflare próprio para listar fontes de torrent de filmes abertos sem configurar Prowlarr nem provedores no Elementum.
+
+1. Publique `cloudflare/kodi-sources` na sua conta Cloudflare seguindo [o guia do Worker](cloudflare/kodi-sources/README.md).
+2. Configure a secret `KODI_API_TOKEN` no Cloudflare, e coloque o mesmo token nas settings **locais** do Kodi.
+3. No Kodi, abra **Felipe Vídeos → Configure → Cloudflare — fontes** e informe a URL HTTPS do Worker e o token.
+4. **Fontes abertas via Cloudflare** surgirá nas fichas dos filmes. Ela lista qualidade, tamanho e fonte, marcando áudio e seeders como desconhecidos quando não fornecidos.
+5. Ao escolher um torrent, o addon o envia ao Elementum para reprodução, sem requerer provedores de pesquisa nele.
+
+**Limite atual:** busca dinâmica no Internet Archive com verificação de licença Creative Commons declarada. O IMDb ID é carregado na consulta, mas o arquivo é identificado por título/ano e pode não ser encontrado. Filmes comerciais recentes em geral não têm fontes nesse acervo. Nenhum Worker foi implantado automaticamente na sua conta Cloudflare.
+
+A integração Prowlarr/debrid permanece opcional. O repositório continua em 1.0.3.
