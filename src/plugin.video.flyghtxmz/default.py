@@ -80,7 +80,7 @@ def show_tools():
 
 def show_recent(category, page=1, term=""):
     from recent import list_titles
-    xbmcplugin.setContent(HANDLE, "movies")
+    xbmcplugin.setContent(HANDLE, "tvshows" if category.startswith("series_") or category == "search_series" else "movies")
     try:
         results, more = list_titles(category, page=page, search_term=term)
         for movie in results:
@@ -89,7 +89,8 @@ def show_recent(category, page=1, term=""):
             if match:
                 info["year"] = int(match.group(1))
             art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
-            add_item(movie["title"], "recent_detail", folder=True, artwork=art, info=info,
+            # Clique direto chama o popup, sem criar mais uma pasta de opções.
+            add_item(movie["title"], "recent_detail", folder=False, artwork=art, info=info,
                      identifier=movie["id"], media=movie["type"])
         if more:
             add_item("Próxima página >>", "recent", folder=True, category=category,
@@ -102,60 +103,75 @@ def show_recent(category, page=1, term=""):
 
 
 def show_recent_detail(identifier, media):
+    """Abre opções do título como popup sem navegar para outro diretório."""
     from recent import detail
-    xbmcplugin.setContent(HANDLE, "movies" if media == "movie" else "tvshows")
+    finish()
     try:
         movie = detail(identifier, media=media)
-        art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
-        info = {"title": movie["title"], "plot": movie["plot"] or "Sinopse indisponível"}
-        add_item("Buscar fontes", "cloudflare_sources",
-                 folder=True, artwork=art, info=info, identifier=identifier,
-                 title=movie["title"], year=str(movie.get("year") or "")[:4])
+        options = [("Buscar fontes", "sources")]
         if movie.get("trailer_id"):
-            add_item("Ver trailer", "recent_trailer", artwork=art,
-                     info=info, identifier=identifier, media=media)
-        add_item("Onde assistir no Brasil", "recent_where",
-                 artwork=art, info=info, identifier=identifier, media=media)
-        add_item("Sinopse e detalhes", "recent_info", artwork=art, info=info,
-                 identifier=identifier, media=media)
+            options.append(("Ver trailer", "recent_trailer"))
+        options.extend([
+            ("Onde assistir no Brasil", "recent_where"),
+            ("Sinopse e detalhes", "recent_info"),
+        ])
+        heading = "{} ({})".format(movie["title"], movie.get("year") or "s/ ano")
+        index = xbmcgui.Dialog().select(heading, [label for label, _ in options])
+        if index is None or index < 0 or index >= len(options):
+            return
+        action = options[index][1]
+        if action == "sources":
+            choose_cloudflare_source(movie["title"], str(movie.get("year") or "")[:4],
+                                     identifier)
+        else:
+            perform_recent_action(action, movie)
     except Exception as exc:
-        xbmcgui.Dialog().ok("Detalhes indisponíveis", str(exc)[:200])
-    finish()
+        xbmc.log("Felipe Vídeos: popup do título falhou ({})".format(
+            type(exc).__name__), xbmc.LOGERROR)
+        xbmcgui.Dialog().ok("Detalhes indisponíveis", "Não foi possível abrir as opções deste título.")
 
 
-def show_cloudflare_sources(title, year="", imdb=""):
-    """Consulta apenas os provedores aceitos pelo cliente."""
+def choose_cloudflare_source(title, year="", imdb=""):
+    """Exibe popup de fontes e entrega a escolhida ao Elementum."""
     from cloudflare_client import list_sources
-    xbmcplugin.setContent(HANDLE, "files")
     try:
         sources = list_sources(title, year=year, imdb=imdb)
+        if not sources:
+            xbmcgui.Dialog().ok(
+                "Nenhuma fonte disponível",
+                "A API não retornou fontes compatíveis. Confira os provedores "
+                "configurados no Cloudflare.")
+            return
+        labels = []
         for source in sources:
             size_text = "{:.1f} GB".format(source["size"] / 1073741824) if source["size"] else "n/d"
             seed_text = str(source["seeders"]) if source["seeders"] is not None else "n/d"
             language = source["language"] if source["language"] != "unknown" else "n/d"
-            label = "{} | {} | {} | {} | Seeds: {} | Áudio: {}".format(
-                source["title"], source["source"], source["quality"], size_text, seed_text, language)
-            add_item(label, "cloudflare_play",
-                     info={"title": source["title"],
-                           "plot": "Fonte informada pelo provedor. Verifique os direitos de reprodução."},
-                     url=source["url"])
-        if not sources:
-            xbmcgui.Dialog().ok("Nenhuma fonte disponível",
-                "A API não retornou fontes compatíveis. Confira os provedores "
-                "que você configurou no Cloudflare.")
+            labels.append("{} | {} | {} | {} | Seeds: {} | Áudio: {}".format(
+                source["title"], source["source"], source["quality"],
+                size_text, seed_text, language))
+        index = xbmcgui.Dialog().select("Selecionar fonte — {}".format(title), labels)
+        if index is None or index < 0 or index >= len(sources):
+            return
+        start_cloudflare_play(sources[index]["url"])
     except Exception as error:
         xbmc.log("Felipe Vídeos: consulta de fontes falhou ({})".format(
             type(error).__name__), xbmc.LOGERROR)
-        xbmcgui.Dialog().ok("Fontes indisponíveis",
+        xbmcgui.Dialog().ok(
+            "Fontes indisponíveis",
             "Não foi possível consultar as fontes. Verifique se o Worker está "
             "publicado e se endpoint.json aponta para ele.")
+
+
+def show_cloudflare_sources(title, year="", imdb=""):
+    """Compatibilidade: links antigos também abrem o seletor em popup."""
     finish()
+    choose_cloudflare_source(title, year=year, imdb=imdb)
 
 
-def play_cloudflare_source(url):
-    """Reproduz somente URI validada; Elementum não pesquisa provedores."""
+def start_cloudflare_play(url):
+    """Reproduz somente URI validada pelo cliente no Elementum."""
     from cloudflare_client import is_supported_source
-    finish()
     if not is_supported_source(url):
         xbmcgui.Dialog().ok("Fonte inválida", "O link não é um magnet ou torrent compatível.")
         return
@@ -163,6 +179,12 @@ def play_cloudflare_source(url):
         missing_elementum()
         return
     xbmc.executebuiltin("PlayMedia({})".format(build_elementum_url(url)))
+
+
+def play_cloudflare_source(url):
+    """Compatibilidade: links de versões anteriores continuam funcionando."""
+    finish()
+    start_cloudflare_play(url)
 
 
 def search_recent():
@@ -176,36 +198,41 @@ def search_recent():
                 "recent", category=category, page=1, term=result.strip()[:80])))
 
 
+def perform_recent_action(action, movie):
+    """Executa ação do popup reutilizando os metadados já consultados."""
+    from recent import justwatch_search_url
+    if action == "recent_info":
+        desc = "{} ({})\n\n{}\n\nNota IMDb: {}".format(
+            movie["title"], movie["year"], movie["plot"] or "Sem sinopse",
+            movie["rating"] or "Indisponível")
+        xbmcgui.Dialog().textviewer(movie["title"], desc)
+    elif action == "recent_trailer":
+        yt_id = movie.get("trailer_id")
+        if not yt_id:
+            xbmcgui.Dialog().ok("Trailer indisponível", "Não há trailer para este título.")
+            return
+        try:
+            xbmcaddon.Addon(id="plugin.video.youtube")
+        except Exception:
+            xbmcgui.Dialog().ok("YouTube necessário",
+                "Instale o addon YouTube pelo repositório oficial do Kodi.")
+            return
+        xbmc.executebuiltin("PlayMedia(plugin://plugin.video.youtube/play/?video_id={})".format(yt_id))
+    elif action == "recent_where":
+        url = justwatch_search_url(movie["title"])
+        if xbmcgui.Dialog().yesno("Onde assistir — Brasil",
+                "Abrir pesquisa no navegador Chrome da TV Box?\n\n"
+                "Disponibilidade e preços são informados pelo serviço externo."):
+            xbmc.executebuiltin(
+                "StartAndroidActivity(com.android.chrome,android.intent.action.VIEW,,{})".format(url))
+
+
 def show_recent_action(action, identifier, media):
-    from recent import detail, justwatch_search_url
+    """Compatibilidade com URLs das versões anteriores do addon."""
+    from recent import detail
     finish()
     try:
-        movie = detail(identifier, media=media)
-        if action == "recent_info":
-            desc = "{} ({})\n\n{}\n\nNota IMDb: {}".format(
-                movie["title"], movie["year"], movie["plot"] or "Sem sinopse",
-                movie["rating"] or "Indisponível")
-            xbmcgui.Dialog().textviewer(movie["title"], desc)
-        elif action == "recent_trailer":
-            yt_id = movie["trailer_id"]
-            if not yt_id:
-                xbmcgui.Dialog().ok("Trailer indisponível", "Não há trailer disponível para este título.")
-                return
-            try:
-                xbmcaddon.Addon(id="plugin.video.youtube")
-            except Exception:
-                xbmcgui.Dialog().ok("YouTube necessário",
-                    "Instale o addon YouTube pelo repositório oficial do Kodi. "
-                    "Assim o Felipe Vídeos reproduzirá os trailers sem digitar URLs.")
-                return
-            xbmc.executebuiltin("PlayMedia(plugin://plugin.video.youtube/play/?video_id={})".format(yt_id))
-        elif action == "recent_where":
-            url = justwatch_search_url(movie["title"])
-            answer = xbmcgui.Dialog().yesno("Onde assistir — Brasil",
-                "Abrir pesquisa no navegador Chrome da TV Box?\n\n"
-                "A disponibilidade e o preço são informados pelo serviço externo.")
-            if answer:
-                xbmc.executebuiltin("StartAndroidActivity(com.android.chrome,android.intent.action.VIEW,,{})".format(url))
+        perform_recent_action(action, detail(identifier, media=media))
     except Exception as exc:
         xbmcgui.Dialog().ok("Não foi possível abrir", str(exc)[:220])
 
@@ -302,7 +329,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.3.5",
+        "Felipe Vídeos 1.3.6",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "

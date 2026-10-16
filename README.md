@@ -6,7 +6,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.3.5
+## Felipe Vídeos 1.3.6
 
 **Tela principal**
 
@@ -20,8 +20,12 @@ Filmes contém *Filmes de 2026*, *Filmes de 2025* e *Filmes em alta*
 (os anos são atualizados dinamicamente). Séries contém *Séries de 2026*
 e *Séries em alta*. O catálogo e as capas vêm do Cinemeta.
 
-Ao abrir um título aparecem **Buscar fontes**, trailer, onde assistir no
-Brasil e sinopse. A lista de fontes é obtida do Worker publicado na conta
+Ao selecionar um filme ou série aparece um **popup nativo do Kodi** com
+**Buscar fontes**, trailer (quando disponível), onde assistir no Brasil e sinopse,
+sem abrir uma nova pasta. **Buscar fontes** abre um segundo popup com as
+fontes disponíveis; ao escolher uma delas o Elementum é chamado diretamente.
+Cancelar qualquer popup mantém o usuário no catálogo.
+A lista de fontes é obtida do Worker publicado na conta
 Cloudflare, cuja URL é lida automaticamente de
 [endpoint.json](cloudflare/kodi-sources/endpoint.json). Não precisa inserir
 endereço ou token na TV Box.
