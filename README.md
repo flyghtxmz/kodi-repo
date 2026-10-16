@@ -2,7 +2,7 @@
 
 Fonte Kodi no GitHub Pages: https://flyghtxmz.github.io/kodi-repo/
 
-No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.1.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
+No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.2.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
 
 ## Felipe Vídeos 1.1.1 (Kodi 21.2 Omega)
 
@@ -21,8 +21,12 @@ Rode `python tools/build_repo.py` para gerar ZIPs, `addons.xml` e `addons.xml.md
 
 ## Diagnóstico de conectividade (Kodi Omega)
 
-O instalador do repositório 1.0.1 inclui a dependência `xbmc.addon` e declara `<hashes>false</hashes>`. Se o Kodi mostrar **Could not connect to repository**, reinstale o ZIP 1.0.1 e use o comando **Check for updates** no menu de contexto do repositório. Para investigar erros persistentes, verifique a conectividade do Kodi com `addons.xml` e envie o `kodi.log` com o erro de `CRepository`/TLS.
+O instalador do repositório 1.0.2 inclui a dependência `xbmc.addon` e declara `<hashes>false</hashes>`. Se o Kodi mostrar **Could not connect to repository**, reinstale o ZIP 1.0.2 e use o comando **Check for updates** no menu de contexto do repositório. Para investigar erros persistentes, verifique a conectividade do Kodi com `addons.xml` e envie o `kodi.log` com o erro de `CRepository`/TLS.
 
 ## Diagnóstico (TV Box / Android TV)
 
 Se **Install from repository** mostrar `Could not connect to repository`, é possível instalar o vídeo addon independentemente do repositório: **Install from zip file > Felipe Addons > Felipe Vídeos - instalador direto e diagnóstico** (link no índice da fonte). Depois abra **Video add-ons > Felipe Vídeos > Diagnosticar repositório**. O relatório usa Kodi VFS/cURL e Python HTTPS no mesmo aparelho, valida o checksum e procura mensagens do Kodi relacionadas ao repositório. Envie uma foto da tela de resultados; não publique logs completos sem revisar dados pessoais.
+
+## Release do repositório 1.0.2
+
+Numeração do instalador aumentada de 1.0.1 para 1.0.2 para o Kodi reconhecer a versão atual. Esta mudança, por si só, não comprova que o erro de conexão ao catálogo foi resolvido.
