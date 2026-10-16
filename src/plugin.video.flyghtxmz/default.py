@@ -119,9 +119,10 @@ def show_recent_detail(identifier, media):
             ("Onde assistir no Brasil", "recent_where"),
             ("Sinopse e detalhes", "recent_info"),
         ])
-        heading = "{} ({}) | IMDb: {}/10".format(
-            movie["title"], movie.get("year") or "s/ ano",
-            movie.get("rating") or "Indisponível")
+        rating = movie.get("rating") or "Indisponível"
+        rating_label = rating + "/10" if rating != "Indisponível" else rating
+        heading = "{} ({}) | IMDb: {}".format(
+            movie["title"], movie.get("year") or "s/ ano", rating_label)
         index = xbmcgui.Dialog().select(heading, [label for label, _ in options])
         if index is None or index < 0 or index >= len(options):
             return
@@ -208,10 +209,12 @@ def perform_recent_action(action, movie):
     """Executa ação do popup reutilizando os metadados já consultados."""
     from recent import justwatch_search_url
     if action == "recent_info":
-        desc = "{} ({})\n\nSinopse (PT-BR):\n{}\n\nNota IMDb: {}/10".format(
+        rating = movie.get("rating") or "Indisponível"
+        rating_label = rating + "/10" if rating != "Indisponível" else rating
+        desc = "{} ({})\n\nSinopse (PT-BR):\n{}\n\nNota IMDb: {}".format(
             movie["title"], movie["year"],
             movie["plot"] or "Sinopse em português (Brasil) indisponível.",
-            movie["rating"] or "Indisponível")
+            rating_label)
         xbmcgui.Dialog().textviewer(movie["title"], desc)
     elif action == "recent_trailer":
         yt_id = movie.get("trailer_id")
@@ -336,7 +339,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.3.7",
+        "Felipe Vídeos 1.3.8",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "

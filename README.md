@@ -6,7 +6,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.3.7
+## Felipe Vídeos 1.3.8
 
 **Tela principal**
 
@@ -72,3 +72,22 @@ Sincronize o código customizado antes de habilitar o adaptador; veja
 O Kodi 1.3.7 faz uma segunda deduplicação por hash e prioriza PT-BR declarado,
 sem inferir áudio pelo nome do indexador. O Elementum pode exigir a escolha
 manual do arquivo de vídeo no caso de torrents com múltiplos arquivos.
+
+## Sinopses PT-BR e notas IMDb (1.3.8)
+
+- A ficha de filmes e séries consulta a descrição em **português do Brasil** do
+  serviço público TMDb-Stremio (`tmdb.elfhosted.com`, configuração `pt-BR`).
+- As sinopses são armazenadas **localmente na TV Box** por sete dias;
+  se houver indisponibilidade, usa o último texto válido ou exibe uma mensagem
+  em português, sem apresentar a sinopse original em inglês.
+- A **nota IMDb** vem do campo `imdbRating` do **Cinemeta**, não da nota
+  `vote_average` do TMDb. O cache local mantém o valor por **24 horas**.
+  Depois desse período, ela é reconsultada quando o usuário abre a ficha;
+  a atualização não executa em segundo plano quando o Kodi está fechado.
+- As notas podem permanecer temporariamente iguais caso o Cinemeta ainda não
+  tenha refletido uma mudança feita no IMDb. A origem externa é responsável
+  por publicar o dado, e o addon não promete sincronização em tempo real.
+- Na lista do catálogo, o resumo avisa que a sinopse PT-BR está disponível
+  ao abrir o título, para evitar dezenas de consultas externas por página.
+- Nenhuma chave TMDb é exigida nas configurações do Kodi, e o Worker de
+  produção da Cloudflare não foi modificado.
