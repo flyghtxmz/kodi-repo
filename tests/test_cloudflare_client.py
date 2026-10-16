@@ -1,4 +1,4 @@
-"""Testes sem rede do cliente Kodi da API de fontes Cloudflare."""
+"""Testes locais do cliente Kodi com provedores independentes."""
 import importlib.util
 import json
 import sys
@@ -14,7 +14,6 @@ PATH = ROOT / "src/plugin.video.flyghtxmz/cloudflare_client.py"
 class FakeResponse:
     def __init__(self, payload):
         self.payload = json.dumps(payload).encode("utf-8")
-        self.status_code = 200
 
     def __enter__(self):
         return self
@@ -35,7 +34,6 @@ class CloudflareClientTests(unittest.TestCase):
         addon = types.ModuleType("xbmcaddon")
         addon.Addon = lambda: types.SimpleNamespace(getSetting=lambda key: {
             "cloudflare_endpoint": "https://felipe-example.workers.dev",
-            "cloudflare_token": "test-token",
         }.get(key, ""))
         requests = types.ModuleType("requests")
         requests.get = lambda *args, **kwargs: FakeResponse({"sources": []})
@@ -45,7 +43,7 @@ class CloudflareClientTests(unittest.TestCase):
             spec.loader.exec_module(cls.client)
         cls.requests = requests
 
-    def test_only_https_root_worker_is_allowed(self):
+    def test_worker_requires_https(self):
         self.assertEqual(self.client._worker_url("https://test.workers.dev/"),
                          "https://test.workers.dev")
         for url in ("http://example.org", "https://user:pass@host/",
@@ -53,56 +51,60 @@ class CloudflareClientTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.client._worker_url(url)
 
-    def test_only_known_archive_torrents_are_playable(self):
+    def test_magnet_and_https_torrent_are_valid(self):
         self.assertTrue(self.client.is_supported_source(
-            "https://archive.org/download/Bunny/Bunny_archive.torrent"))
-        for url in ("https://evil.example/file_archive.torrent",
-                    "http://archive.org/download/Bunny/Bunny_archive.torrent",
-                    "https://archive.org/download/x/movie.mp4",
-                    "https://archive.org.evil.example/download/x/x_archive.torrent"):
-            self.assertFalse(self.client.is_supported_source(url))
+            "magnet:?xt=urn:btih:" + "a" * 40))
+        self.assertTrue(self.client.is_supported_source(
+            "https://media.example.org/film.torrent?download=1"))
+        for uri in ("http://media.example.org/film.torrent",
+                    "https://archive.org/download/x/x_archive.torrent",
+                    "https://127.0.0.1/file.torrent",
+                    "https://localhost/file.torrent",
+                    "https://example.org/video.mp4",
+                    "magnet:?xt=invalid",
+                    "javascript:alert(1)"):
+            self.assertFalse(self.client.is_supported_source(uri))
 
-    def test_no_credentials_exposed_in_public_request(self):
-        example = {
-            "verified_license": True, "source": "Internet Archive",
-            "title": "Big Buck Bunny", "quality": "1080p",
-            "size": 70000000, "seeders": None, "language": "unknown",
-            "url": "https://archive.org/download/Bunny/Bunny_archive.torrent",
-        }
+    def test_archive_provider_is_removed_even_if_worker_returns_it(self):
+        archive = {"title": "Big Buck Bunny", "source": "Internet Archive",
+                   "url": "https://archive.org/download/x/x_archive.torrent"}
+        valid = {"title": "Vídeo livre", "source": "Provedor autorizado",
+                 "url": "https://media.example.org/film.torrent",
+                 "quality": "1080p", "language": "pt-br", "seeders": 10}
+        with patch.object(self.requests, "get",
+                          return_value=FakeResponse({"sources": [archive, valid]})):
+            sources = self.client.list_sources("Filme")
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0]["source"], "Provedor autorizado")
+
+    def test_api_client_requests_without_token(self):
         seen = {}
-
         def get(url, **kwargs):
             seen.update({"url": url, **kwargs})
-            return FakeResponse({"sources": [example]})
-
+            return FakeResponse({"sources": []})
         with patch.object(self.requests, "get", side_effect=get):
-            result = self.client.list_sources("Big Buck Bunny", year="2008",
-                                              imdb="tt1254207")
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["seeders"], None)
+            self.assertEqual(self.client.list_sources("Filme", year="2008", imdb="tt1254207"), [])
         self.assertIn("/v1/sources", seen["url"])
         self.assertNotIn("Authorization", seen["headers"])
-        self.assertNotIn("test-token", str(seen["params"]))
-        self.assertNotIn("test-token", seen["url"])
+        self.assertEqual(seen["params"]["imdb"], "tt1254207")
 
-    def test_unverified_and_untrusted_sources_removed(self):
-        bad = {
-            "verified_license": True, "quality": "1080p",
-            "url": "https://untrusted.example/movie_archive.torrent",
-        }
-        unverified = {
-            "verified_license": False, "quality": "1080p",
-            "url": "https://archive.org/download/x/x_archive.torrent",
-        }
-        with patch.object(self.requests, "get",
-                          return_value=FakeResponse({"sources": [bad, unverified]})):
-            self.assertEqual(self.client.list_sources("Some movie", "2010"), [])
+    def test_pt_br_quality_priority(self):
+        items = [
+            {"title": "Original", "source": "P1", "quality": "4K",
+             "language": "en", "url": "magnet:?xt=urn:btih:" + "a"*40},
+            {"title": "Dublado", "source": "P2", "quality": "1080p",
+             "language": "pt-br", "url": "magnet:?xt=urn:btih:" + "b"*40},
+        ]
+        with patch.object(self.requests, "get", return_value=FakeResponse({"sources": items})):
+            sources = self.client.list_sources("Filme")
+        self.assertEqual(len(sources), 2)
+        self.assertEqual(sources[0]["title"], "Dublado")
 
     def test_malformed_response_is_rejected(self):
         with patch.object(self.requests, "get",
-                          return_value=FakeResponse({"not_sources": []})):
+                          return_value=FakeResponse({"invalid": []})):
             with self.assertRaises(ValueError):
-                self.client.list_sources("Some movie")
+                self.client.list_sources("Filme")
 
 
 if __name__ == "__main__":
