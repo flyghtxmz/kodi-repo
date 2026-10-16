@@ -1,10 +1,62 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <settings version="1">
     <section id="plugin.video.flyghtxmz">
-        <category id="general" label="32000">
+        <category id="general" label="Geral">
             <group id="1">
-                <setting id="custom_url" type="string" label="32001" default="">
-                    <control type="edit" format="string" />
+                <setting id="custom_url" type="string" label="URL do meu vídeo">
+                    <default/>
+                    <control type="edit" format="string"/>
+                </setting>
+            </group>
+        </category>
+        <category id="prowlarr" label="Prowlarr">
+            <group id="1">
+                <setting id="prowlarr_url" type="string" label="Endereço do Prowlarr">
+                    <default>http://localhost:9696</default>
+                    <control type="edit" format="string"/>
+                </setting>
+                <setting id="prowlarr_api_key" type="string" label="Chave API Prowlarr">
+                    <default/>
+                    <control type="edit" format="string"><hidden>true</hidden></control>
+                </setting>
+                <setting id="prowlarr_language_tag" type="string" label="Tag dos indexadores preferidos">
+                    <default>portugues</default>
+                    <control type="edit" format="string"/>
+                </setting>
+            </group>
+        </category>
+        <category id="debrid" label="Debrid">
+            <group id="1">
+                <setting id="debrid_provider" type="string" label="Provedor debrid">
+                    <default>realdebrid</default>
+                    <constraints><options>
+                        <option label="Real-Debrid">realdebrid</option>
+                        <option label="TorBox">torbox</option>
+                    </options></constraints>
+                    <control type="spinner" format="string"/>
+                </setting>
+                <setting id="debrid_token" type="string" label="Token do debrid">
+                    <default/>
+                    <control type="edit" format="string"><hidden>true</hidden></control>
+                </setting>
+            </group>
+        </category>
+        <category id="search" label="Preferências de busca">
+            <group id="1">
+                <setting id="min_quality" type="string" label="Qualidade mínima">
+                    <default>1080p</default>
+                    <constraints><options>
+                        <option>4K</option>
+                        <option>1080p</option>
+                        <option>720p</option>
+                        <option>480p</option>
+                    </options></constraints>
+                    <control type="spinner" format="string"/>
+                </setting>
+                <setting id="min_seeders" type="integer" label="Seeders mínimos">
+                    <default>3</default>
+                    <constraints><minimum>0</minimum><maximum>10000</maximum></constraints>
+                    <control type="edit" format="integer"/>
                 </setting>
             </group>
         </category>
