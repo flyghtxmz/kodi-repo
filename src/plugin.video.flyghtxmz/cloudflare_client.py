@@ -94,6 +94,31 @@ def _read_json(response):
     return json.loads(b"".join(parts).decode("utf-8"))
 
 
+def _torrent_hash(item, uri):
+    """Deduplicação entre provedores baseada no hash, não na URL magnet."""
+    raw = str(item.get("infoHash") or item.get("infohash") or "").lower()
+    if re.fullmatch(r"[0-9a-f]{40}", raw):
+        return raw
+    try:
+        parsed = urlsplit(uri)
+        if parsed.scheme.lower() != "magnet":
+            return ""
+        for xt in parse_qs(parsed.query).get("xt", []):
+            match = re.fullmatch(r"urn:btih:([a-fA-F0-9]{40})", xt, re.I)
+            if match:
+                return match.group(1).lower()
+    except (ValueError, TypeError):
+        pass
+    return ""
+
+
+def _source_priority(item):
+    language = item["language"].casefold().replace("_", "-")
+    ptbr = language in ("pt-br", "ptbr", "portugues", "português", "brazilian")
+    ranks = {"4K": 4, "1080p": 3, "720p": 2, "480p": 1, "SD": 0}
+    return (ptbr, ranks.get(item["quality"], 0), item["seeders"] or 0)
+
+
 def list_sources(title, year="", imdb=""):
     addon = xbmcaddon.Addon()
     endpoint = configured_endpoint()
@@ -119,15 +144,13 @@ def list_sources(title, year="", imdb=""):
     if not isinstance(payload, dict) or not isinstance(payload.get("sources"), list):
         raise ValueError("O Worker retornou um formato inesperado.")
 
-    result = []
-    seen = set()
+    unique = {}
     for item in payload["sources"][:80]:
         if not isinstance(item, dict) or _is_removed_provider(item):
             continue
         uri = item.get("url") or item.get("magnet") or item.get("torrent")
-        if not is_supported_source(uri) or uri in seen:
+        if not is_supported_source(uri):
             continue
-        seen.add(uri)
         label = str(item.get("title") or title)[:180]
         q = str(item.get("quality") or "SD")
         if q not in RANKS:
@@ -140,7 +163,7 @@ def list_sources(title, year="", imdb=""):
             seeds = None if item.get("seeders") is None else max(0, int(item["seeders"]))
         except (ValueError, TypeError):
             seeds = None
-        result.append({
+        candidate = {
             "title": label,
             "source": str(item.get("source") or item.get("provider") or "Fonte externa")[:80],
             "quality": q,
@@ -148,11 +171,12 @@ def list_sources(title, year="", imdb=""):
             "seeders": seeds,
             "language": str(item.get("language") or "unknown")[:30],
             "url": uri,
-        })
-    def order(item):
-        language = item["language"].casefold().replace("_", "-")
-        ptbr = language in ("pt-br", "ptbr", "portugues", "português", "brazilian")
-        ranks = {"4K": 4, "1080p": 3, "720p": 2, "480p": 1, "SD": 0}
-        return (ptbr, ranks.get(item["quality"], 0), item["seeders"] or 0)
-    result.sort(key=order, reverse=True)
+        }
+        hash_value = _torrent_hash(item, uri)
+        dedupe_key = ("hash", hash_value) if hash_value else ("url", uri)
+        previous = unique.get(dedupe_key)
+        if previous is None or _source_priority(candidate) > _source_priority(previous):
+            unique[dedupe_key] = candidate
+    result = list(unique.values())
+    result.sort(key=_source_priority, reverse=True)
     return result
