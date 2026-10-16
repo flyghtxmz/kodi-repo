@@ -230,3 +230,30 @@ def playback(identifier):
         "creator": featured_item["creator"] if featured_item else clean_text(info.get("creator"), 100),
         "thumb": IMAGE_ROOT + quote(ident, safe=""),
     }
+
+def licensed_torrent(identifier):
+    """Resolve o torrent de um dos filmes livres selecionados e verifica a licença.
+
+    Não pesquisa fontes externas nem indexadores: aceita somente o torrent
+    publicado no próprio registro do Internet Archive para a seleção curada.
+    """
+    ident = sanitize_identifier(identifier)
+    movie = OPEN_MOVIES.get(ident)
+    if movie is None:
+        raise ValueError("Torrent integrado somente nos destaques de licença aberta.")
+    source_id = sanitize_identifier(movie["source_id"])
+    data = fetch_json(METADATA_ROOT + quote(source_id, safe=""))
+    metadata = data.get("metadata") or {}
+    if not isinstance(metadata, dict) or not open_license(metadata.get("licenseurl")):
+        raise ValueError("A licença deste filme não foi validada.")
+    for file in data.get("files") or []:
+        if not isinstance(file, dict):
+            continue
+        filename = file.get("name")
+        if (isinstance(filename, str) and filename.lower().endswith("_archive.torrent")
+                and file.get("source") == "metadata"
+                and "/" not in filename and "\\" not in filename
+                and ".." not in filename and len(filename) <= 180):
+            return DOWNLOAD_ROOT + quote(source_id, safe="") + "/" + quote(filename, safe="")
+    raise ValueError("Não foi encontrado torrent autorizado neste acervo.")
+
