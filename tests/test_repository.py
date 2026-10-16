@@ -109,7 +109,7 @@ class PluginTests(unittest.TestCase):
 
     def test_menu_with_custom_video(self):
         result = self.run_addon(custom_url="https://example.com/test.mp4")
-        self.assertEqual(len(result["items"]), 7)
+        self.assertEqual(len(result["items"]), 8)
 
     def test_demo_playback(self):
         result = self.run_addon("demo")
