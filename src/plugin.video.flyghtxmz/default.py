@@ -84,7 +84,11 @@ def show_recent(category, page=1, term=""):
     try:
         results, more = list_titles(category, page=page, search_term=term)
         for movie in results:
-            info = {"title": movie["title"], "plot": movie["plot"] or "Consulte a ficha do título."}
+            # O catálogo Cinemeta pode fornecer sinopse em inglês.
+            # A tradução PT-BR só é consultada quando a pessoa abre a ficha,
+            # evitando 100 requisições adicionais por página.
+            info = {"title": movie["title"],
+                    "plot": "Abra o título para consultar a sinopse em português (Brasil)."}
             match = re.match(r"^(\d{4})", movie.get("year") or "")
             if match:
                 info["year"] = int(match.group(1))
@@ -115,7 +119,9 @@ def show_recent_detail(identifier, media):
             ("Onde assistir no Brasil", "recent_where"),
             ("Sinopse e detalhes", "recent_info"),
         ])
-        heading = "{} ({})".format(movie["title"], movie.get("year") or "s/ ano")
+        heading = "{} ({}) | IMDb: {}/10".format(
+            movie["title"], movie.get("year") or "s/ ano",
+            movie.get("rating") or "Indisponível")
         index = xbmcgui.Dialog().select(heading, [label for label, _ in options])
         if index is None or index < 0 or index >= len(options):
             return
@@ -202,8 +208,9 @@ def perform_recent_action(action, movie):
     """Executa ação do popup reutilizando os metadados já consultados."""
     from recent import justwatch_search_url
     if action == "recent_info":
-        desc = "{} ({})\n\n{}\n\nNota IMDb: {}".format(
-            movie["title"], movie["year"], movie["plot"] or "Sem sinopse",
+        desc = "{} ({})\n\nSinopse (PT-BR):\n{}\n\nNota IMDb: {}/10".format(
+            movie["title"], movie["year"],
+            movie["plot"] or "Sinopse em português (Brasil) indisponível.",
             movie["rating"] or "Indisponível")
         xbmcgui.Dialog().textviewer(movie["title"], desc)
     elif action == "recent_trailer":
