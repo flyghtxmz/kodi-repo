@@ -1,0 +1,38 @@
+name: Probe PT-BR Catalog Metadata
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/ptbr-catalog-probe.yml']
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect localized catalog shape
+        run: |
+          python - <<'PY'
+          import json,urllib.request,urllib.error
+          base="https://tmdb.elfhosted.com/N4IgNghgdg5grhGBTEAuEAHALgWgEIBKIAvkA"
+          routes=[
+            "/catalog/movie/top.json",
+            "/catalog/series/top.json",
+            "/catalog/movie/year/genre=2026.json",
+            "/catalog/movie/top/search=Carrie.json",
+            "/catalog/movie/top/skip=100.json",
+          ]
+          for route in routes:
+            try:
+              url=base+route
+              req=urllib.request.Request(url,headers={"User-Agent":"FelipeVideosKodiMetadataProbe/1.0","Accept":"application/json"})
+              with urllib.request.urlopen(req,timeout=13) as response:
+                raw=response.read(600000)
+                payload=json.loads(raw)
+                items=payload.get("metas",[])
+                print("RESULT",route,"http",response.status,"count",len(items))
+                for item in items[:2]:
+                  print("META",{"id":item.get("imdb_id") or item.get("id"),"name":item.get("name"),"keys":list(item.keys()),"description":str(item.get("description",""))[:150],"rating":item.get("imdbRating")})
+            except Exception as e:
+              print("FAIL",route,type(e).__name__,str(e)[:130])
+          PY
