@@ -42,6 +42,7 @@ def finish():
 
 def show_menu():
     xbmcplugin.setContent(HANDLE, "videos")
+    add_item("Diagnosticar repositório (erro de conexão)", "diagnostic")
     add_item("Adicionar magnet ou URL .torrent", "torrent_input")
     add_item("Configurar Elementum (buffer / armazenamento)", "elementum_settings")
     add_item("Como instalar o Elementum", "elementum_help")
@@ -155,7 +156,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.1",
+        "Felipe Vídeos 1.1.1",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -171,6 +172,10 @@ def main():
         play_http(DEMO_URL, "Flores - MDN")
     elif action == "custom":
         play_http(ADDON.getSetting("custom_url").strip(), "Meu vídeo")
+    elif action == "diagnostic":
+        finish()
+        from diagnostic import run_diagnostic
+        xbmcgui.Dialog().textviewer("Diagnóstico Felipe Addons", run_diagnostic())
     elif action == "torrent_input":
         open_magnet_dialog()
     elif action == "elementum_settings":

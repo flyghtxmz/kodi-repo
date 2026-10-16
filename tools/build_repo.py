@@ -59,6 +59,7 @@ def build():
         '<title>Felipe Addons Kodi</title></head><body>\n'
         f'<a href="{destination.name}">{destination.name}</a>\n'
         '<p>Instalador do repositório Kodi. Abra este endereço no File Manager do Kodi.</p>\n'
+        f'<a href="plugin.video.flyghtxmz/plugin.video.flyghtxmz-{ET.parse(SRC / "plugin.video.flyghtxmz" / "addon.xml").getroot().attrib["version"]}.zip">Felipe Vídeos - instalador direto e diagnóstico</a>\n'
         '</body></html>\n'
     )
     (ROOT / "index.html").write_text(index_page, encoding="utf-8")

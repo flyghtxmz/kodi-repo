@@ -103,9 +103,9 @@ class PluginTests(unittest.TestCase):
 
     def test_menu_without_custom_video(self):
         result = self.run_addon()
-        self.assertEqual(len(result["items"]), 6)
+        self.assertEqual(len(result["items"]), 7)
         self.assertEqual(len(result["ends"]), 1)
-        self.assertTrue(result["items"][3]["listitem"].properties.get("IsPlayable"))
+        self.assertTrue(result["items"][4]["listitem"].properties.get("IsPlayable"))
 
     def test_menu_with_custom_video(self):
         result = self.run_addon(custom_url="https://example.com/test.mp4")
