@@ -101,6 +101,9 @@ def show_recent_detail(identifier, media):
         movie = detail(identifier, media=media)
         art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
         info = {"title": movie["title"], "plot": movie["plot"] or "Sinopse indisponível"}
+        if media == "movie":
+            add_item("Reproduzir automaticamente (PT-BR)", "recent_play", playable=True,
+                     artwork=art, info=info, identifier=identifier)
         if movie["trailer_id"]:
             add_item("▶ Ver trailer (YouTube)", "recent_trailer", artwork=art,
                      info=info, identifier=identifier, media=media)
@@ -111,6 +114,38 @@ def show_recent_detail(identifier, media):
     except Exception as exc:
         xbmcgui.Dialog().ok("Detalhes indisponíveis", str(exc)[:200])
     finish()
+
+
+def play_recent_auto(identifier):
+    """Busca e tenta resolver a melhor fonte configurada para o filme."""
+    from recent import detail
+    from resources.lib.sources import get_playable_url
+
+    progress = xbmcgui.DialogProgress()
+    progress.create("Buscando fontes PT-BR", "Consultando as fontes configuradas")
+    try:
+        movie = detail(identifier, media="movie")
+        year = str(movie.get("year") or "")[:4]
+        direct, source = get_playable_url(identifier, movie["title"], year)
+    except Exception as exc:
+        xbmc.log("Felipe Vídeos: falha ao preparar reprodução (%s)" %
+                 type(exc).__name__, xbmc.LOGERROR)
+        direct, source = None, None
+        movie = None
+    finally:
+        progress.close()
+
+    if not direct or not movie:
+        xbmcgui.Dialog().notification("Sem fontes",
+                "Nenhuma fonte PT-BR compatível foi resolvida",
+                xbmcgui.NOTIFICATION_ERROR, 5000)
+        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
+        return
+    label = movie["title"]
+    video = xbmcgui.ListItem(label=label, path=direct)
+    video.setInfo("video", {"title": label, "plot": movie.get("plot") or ""})
+    video.setProperty("IsPlayable", "true")
+    xbmcplugin.setResolvedUrl(HANDLE, True, video)
 
 
 def search_recent():
@@ -367,6 +402,8 @@ def main():
     elif action == "recent_detail":
         show_recent_detail(params.get("identifier", [""])[0],
                            params.get("media", ["movie"])[0])
+    elif action == "recent_play":
+        play_recent_auto(params.get("identifier", [""])[0])
     elif action in ("recent_info", "recent_where", "recent_trailer"):
         show_recent_action(action, params.get("identifier", [""])[0],
                            params.get("media", ["movie"])[0])
