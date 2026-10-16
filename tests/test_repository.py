@@ -55,8 +55,9 @@ class RepositoryTests(unittest.TestCase):
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
 
 class PluginTests(unittest.TestCase):
-    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint=""):
-        calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": []}
+    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None):
+        calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": [], "popups": []}
+        choices = list(popup_choices) if popup_choices is not None else [0]
         xbmc = types.ModuleType("xbmc")
         xbmcaddon = types.ModuleType("xbmcaddon")
         xbmcgui = types.ModuleType("xbmcgui")
@@ -97,7 +98,8 @@ class PluginTests(unittest.TestCase):
                 return magnet_input
 
             def select(self, title, options):
-                return 0
+                calls["popups"].append((title, options))
+                return choices.pop(0) if choices else -1
 
             def yesno(self, title, message):
                 return True
@@ -106,7 +108,7 @@ class PluginTests(unittest.TestCase):
                 calls["dialogs"].append((title, content))
 
         cloudflare_stub = types.ModuleType("cloudflare_client")
-        cloudflare_stub.list_sources = lambda title, year="", imdb="": [{
+        cloudflare_stub.list_sources = lambda title, year="", imdb="": source_items if source_items is not None else [{
             "title": "Vídeo autorizado", "quality": "1080p", "size": 1024,
             "source": "Provedor de teste", "seeders": 8,
             "language": "pt-br",
@@ -175,30 +177,52 @@ class PluginTests(unittest.TestCase):
     def test_recent_list_has_poster_and_details(self):
         result = self.run_addon("recent", query={"category": "movies_new"})
         self.assertEqual(len(result["items"]), 1, result["dialogs"])
-        self.assertTrue(result["items"][0]["isFolder"])
+        self.assertFalse(result["items"][0]["isFolder"])
         self.assertIn("tt1234567", result["items"][0]["url"])
         self.assertEqual(result["items"][0]["listitem"].info["year"], 2026)
 
-    def test_recent_details_offer_only_relevant_actions(self):
-        result = self.run_addon("recent_detail", query={"identifier": "tt1234567", "media": "movie"})
-        self.assertEqual(len(result["items"]), 4)
-        self.assertEqual(result["items"][0]["listitem"].label, "Buscar fontes")
-        self.assertIn("cloudflare_sources", result["items"][0]["url"])
-        self.assertIn("recent_trailer", result["items"][1]["url"])
-        self.assertIn("recent_where", result["items"][2]["url"])
-        self.assertIn("recent_info", result["items"][3]["url"])
-        self.assertNotIn("recent_elementum", " ".join(x["url"] for x in result["items"]))
+    def test_popup_title_choices_without_new_folder(self):
+        result = self.run_addon("recent_detail",
+            query={"identifier": "tt1234567", "media": "movie"},
+            popup_choices=[-1])
+        self.assertEqual(result["items"], [])
+        self.assertEqual(len(result["popups"]), 1)
+        self.assertEqual(result["popups"][0][1],
+            ["Buscar fontes", "Ver trailer", "Onde assistir no Brasil", "Sinopse e detalhes"])
+        self.assertEqual(result["commands"], [])
 
-    def test_cloudflare_lists_source_and_hands_to_elementum(self):
-        result = self.run_addon(
-            "cloudflare_sources",
-            query={"title": "Vídeo autorizado", "year": "2008", "identifier": "tt1234567"})
-        self.assertEqual(len(result["items"]), 1)
-        self.assertIn("cloudflare_play", result["items"][0]["url"])
-        video = self.run_addon("cloudflare_play", query={
-            "url": "https://media.example.org/video.torrent"})
-        self.assertEqual(len(video["commands"]), 1)
-        self.assertIn("plugin.video.elementum/play?uri=", video["commands"][0])
+    def test_popup_source_selection_starts_elementum(self):
+        result = self.run_addon("recent_detail",
+            query={"identifier": "tt1234567", "media": "movie"},
+            popup_choices=[0, 0])
+        self.assertEqual(result["items"], [])
+        self.assertEqual(len(result["popups"]), 2)
+        self.assertIn("Provedor de teste", result["popups"][1][1][0])
+        self.assertEqual(len(result["commands"]), 1)
+        self.assertIn("plugin.video.elementum/play?uri=", result["commands"][0])
+
+    def test_old_cloudflare_action_opens_popup(self):
+        result = self.run_addon("cloudflare_sources",
+            query={"title": "Vídeo autorizado", "year": "2008", "identifier": "tt1234567"},
+            popup_choices=[0])
+        self.assertEqual(result["items"], [])
+        self.assertEqual(len(result["popups"]), 1)
+        self.assertEqual(len(result["commands"]), 1)
+
+    def test_cancel_popup_does_not_start_playback(self):
+        for picks in ([-1], [0, -1]):
+            with self.subTest(picks=picks):
+                result = self.run_addon("recent_detail",
+                    query={"identifier": "tt1234567"}, popup_choices=picks)
+                self.assertEqual(result["commands"], [])
+                self.assertEqual(result["dialogs"], [])
+
+    def test_empty_sources_shows_message(self):
+        result = self.run_addon("recent_detail",
+            query={"identifier": "tt1234567"}, popup_choices=[0],
+            source_items=[])
+        self.assertEqual(len(result["popups"]), 1)
+        self.assertEqual(result["dialogs"][0][0], "Nenhuma fonte disponível")
 
     def test_cloudflare_rejects_untrusted_playback_links(self):
         result = self.run_addon("cloudflare_play", query={
