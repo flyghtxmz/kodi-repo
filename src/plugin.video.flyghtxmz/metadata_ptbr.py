@@ -5,6 +5,7 @@ somente para tradução da descrição: a nota IMDb continua vindo do Cinemeta.
 """
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import re
 import tempfile
@@ -88,7 +89,7 @@ def _valid_rating(value):
     return value if RATING.fullmatch(value) else ""
 
 
-def _read_ptbr_description(identifier, media):
+def _read_ptbr_description(identifier, media, timeout=9):
     if not IMDB_ID.fullmatch(identifier) or media not in ("movie", "series"):
         raise ValueError("Parâmetros de metadados inválidos.")
     address = "{}/meta/{}/{}.json".format(TMDB_STREMIO_BASE, media, identifier)
@@ -96,7 +97,7 @@ def _read_ptbr_description(identifier, media):
         "User-Agent": "FelipeVideosKodi/1.3.8 (metadata)",
         "Accept": "application/json",
     })
-    with urlopen(request, timeout=9) as response:
+    with urlopen(request, timeout=timeout) as response:
         if response.status != 200:
             raise ValueError("Resposta não autorizada para sinopse.")
         raw = response.read(MAX_RESPONSE_BYTES + 1)
@@ -162,6 +163,71 @@ def enrich(identifier, media, imdb_rating="", now=None):
     return (description or FALLBACK_SYNOPSIS,
             rating or "Indisponível",
             entry.get("rating_checked_at"))
+
+
+
+def descriptions_for_catalog(items, now=None):
+    """Preenche a sinopse no painel do Kodi ao listar filmes e séries.
+
+    Usa cache de sete dias; somente descrições ausentes/vencidas são
+    requisitadas, com concorrência limitada. Erros são isolados por título.
+    Nunca apresenta sinopses em inglês do catálogo Cinemeta como substitutas.
+    """
+    current = float(time.time() if now is None else now)
+    cache = _read_cache()
+    plots = {}
+    pending = []
+    for movie in items[:20]:
+        identifier = movie.get("id") if isinstance(movie, dict) else None
+        media = movie.get("type") if isinstance(movie, dict) else None
+        if not isinstance(identifier, str) or not IMDB_ID.fullmatch(identifier):
+            continue
+        if media not in ("movie", "series"):
+            continue
+        key = "{}:{}".format(media, identifier)
+        entry = cache.get(key, {})
+        if not isinstance(entry, dict):
+            entry = {}
+        description = entry.get("description")
+        description = description if isinstance(description, str) else ""
+        plots[key] = description or FALLBACK_SYNOPSIS
+        checked = float(entry.get("description_checked_at") or 0)
+        attempt = float(entry.get("description_attempt_at") or 0)
+        stale = not description or checked <= 0 or current - checked >= DESCRIPTION_TTL or checked > current
+        may_retry = attempt <= 0 or current - attempt >= RETRY_TTL or attempt > current
+        if stale and may_retry:
+            pending.append((key, identifier, media))
+
+    if not pending:
+        return plots
+
+    def fetch_one(identifier, media):
+        # Timeout curto para que uma fonte lenta não bloqueie o catálogo.
+        try:
+            return _read_ptbr_description(identifier, media, timeout=3)
+        except (OSError, TimeoutError, ValueError, TypeError, UnicodeError):
+            return ""
+
+    with ThreadPoolExecutor(max_workers=min(8, len(pending))) as executor:
+        jobs = {executor.submit(fetch_one, identifier, media): key
+                for key, identifier, media in pending}
+        for job in as_completed(jobs):
+            key = jobs[job]
+            entry = cache.get(key)
+            if not isinstance(entry, dict):
+                entry = {}
+            entry["description_attempt_at"] = current
+            try:
+                description = job.result()
+            except Exception:
+                description = ""
+            if description:
+                entry["description"] = description
+                entry["description_checked_at"] = current
+                plots[key] = description
+            cache[key] = entry
+    _write_cache(cache)
+    return plots
 
 
 def cached_rating(identifier, media):
