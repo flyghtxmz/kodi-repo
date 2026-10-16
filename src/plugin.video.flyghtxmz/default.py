@@ -72,7 +72,7 @@ def show_sections(media):
 
 def show_genres(media):
     from recent import GENRE_CATEGORIES
-    prefix = "series_genre_" if media == "series" else "movies_genre_"
+    prefix = "series_" if media == "series" else "movies_"
     xbmcplugin.setContent(HANDLE, "videos")
     for category, label in GENRE_CATEGORIES:
         if category.startswith(prefix):
@@ -92,56 +92,30 @@ def show_tools():
 
 def show_recent(category, page=1, term=""):
     from recent import list_titles
-    xbmcplugin.setContent(
-        HANDLE, "tvshows" if category.startswith("series_") or category == "search_series"
-        else "movies")
+    xbmcplugin.setContent(HANDLE, "tvshows" if category.startswith("series_") or category == "search_series" else "movies")
     try:
         results, more = list_titles(category, page=page, search_term=term)
-        # Mantém IDs IMDb do Cinemeta, mas traduz título e sinopse com uma
-        # única consulta por item. O cache local evita repetir essas consultas.
-        from metadata_ptbr import descriptions_for_catalog, FALLBACK_SYNOPSIS
-        try:
-            translations = descriptions_for_catalog(results, include_titles=True)
-        except (OSError, ValueError, TypeError) as exc:
-            xbmc.log("Felipe Vídeos: traduções indisponíveis: {}".format(
-                type(exc).__name__), xbmc.LOGWARNING)
-            translations = {}
-        localized = []
+        # TMDb PT-BR já fornece nomes localizados e sinopses por página.
+        # Não faz uma segunda requisição para cada capa.
         for movie in results:
-            key = "{}:{}".format(movie["type"], movie["id"])
-            translated = translations.get(key) or {}
-            if isinstance(translated, str):
-                translated = {"plot": translated}
-            pt_title = (translated.get("title") or movie["title"]).strip()
-            pt_plot = translated.get("plot") or FALLBACK_SYNOPSIS
-            localized.append((pt_title, pt_plot, movie))
-
-        # Ordenar após tradução, ignorando acentos.
-        def az(entry):
-            text = unicodedata.normalize("NFKD", entry[0].casefold())
-            return ("".join(c for c in text if not unicodedata.combining(c)),
-                    entry[2]["id"])
-        localized.sort(key=az)
-
-        for pt_title, pt_plot, movie in localized:
-            info = {"title": pt_title, "plot": pt_plot}
-            year = re.match(r"^(\d{4})", movie.get("year") or "")
-            if year:
-                info["year"] = int(year.group(1))
+            info = {"title": movie["title"],
+                    "plot": movie.get("plot") or
+                    "Sinopse em português (Brasil) ainda não disponível."}
+            match = re.match(r"^(\d{4})", movie.get("year") or "")
+            if match:
+                info["year"] = int(match.group(1))
             art = {"thumb": movie["poster"], "poster": movie["poster"],
                    "icon": movie["poster"]}
-            add_item(pt_title, "recent_detail", folder=False,
+            add_item(movie["title"], "recent_detail", folder=False,
                      artwork=art, info=info,
                      identifier=movie["id"], media=movie["type"])
         if more:
-            add_item("Próxima página >>", "recent", folder=True,
-                     category=category, page=page+1, term=term)
+            add_item("Próxima página >>", "recent", folder=True, category=category,
+                     page=page+1, term=term)
         if not results:
-            xbmcgui.Dialog().ok("Nenhum título",
-                "Não há títulos nesta seção no momento.")
+            xbmcgui.Dialog().ok("Nenhum título", "Não há títulos nesta seção no momento.")
     except Exception as exc:
-        xbmcgui.Dialog().ok("Catálogo indisponível",
-            "Não foi possível carregar esta categoria: " + str(exc)[:170])
+        xbmcgui.Dialog().ok("Catálogo de lançamentos", "Erro ao consultar títulos: " + str(exc)[:170])
     finish()
 
 
@@ -167,7 +141,8 @@ def show_recent_detail(identifier, media):
             # O ID TMDb não é um identificador IMDb: evite enviá-lo ao Worker.
             choose_cloudflare_source(movie.get("original_title") or movie["title"],
                                      str(movie.get("year") or "")[:4],
-                                     movie.get("imdb_id") or "")
+                                     movie.get("imdb_id") or (
+                                         identifier if re.fullmatch(r"tt[0-9]{5,12}", identifier) else ""))
         else:
             perform_recent_action(action, movie)
     except Exception as exc:
