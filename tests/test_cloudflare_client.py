@@ -100,6 +100,31 @@ class CloudflareClientTests(unittest.TestCase):
         self.assertEqual(len(sources), 2)
         self.assertEqual(sources[0]["title"], "Dublado")
 
+    def test_same_infohash_is_deduped_across_providers(self):
+        infohash = "b" * 40
+        low = {"title": "Filme 720p", "source": "Comando",
+               "url": "magnet:?xt=urn:btih:" + infohash + "&dn=Original",
+               "quality": "720p", "seeders": 30, "language": "unknown"}
+        high = {"title": "Filme 1080p PT-BR", "source": "Torrentio",
+                "url": "magnet:?xt=urn:btih:" + infohash.upper() + "&dn=Dublado",
+                "quality": "1080p", "seeders": 8, "language": "pt-br"}
+        with patch.object(self.requests, "get",
+                          return_value=FakeResponse({"sources": [low, high]})):
+            items = self.client.list_sources("Filme")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["source"], "Torrentio")
+        self.assertEqual(items[0]["language"], "pt-br")
+
+    def test_url_torrents_without_hash_remain_separate(self):
+        streams = [
+            {"title": "A", "source": "P1", "url": "https://a.example.org/x.torrent"},
+            {"title": "B", "source": "P2", "url": "https://b.example.org/y.torrent"},
+        ]
+        with patch.object(self.requests, "get",
+                          return_value=FakeResponse({"sources": streams})):
+            items = self.client.list_sources("Filme")
+        self.assertEqual(len(items), 2)
+
     def test_malformed_response_is_rejected(self):
         with patch.object(self.requests, "get",
                           return_value=FakeResponse({"invalid": []})):
