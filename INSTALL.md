@@ -100,9 +100,44 @@ as condições de acesso e orientações do provedor antes de usar qualquer
 mecanismo de proxy. Não configure nem publique credenciais de proxies
 ou de indexadores neste repositório.
 
-## 7. Estado da integração
+## 7. Integração de catálogo (1.3.1)
 
-Este documento descreve a **interface de configuração e os requisitos**;
-a presença dessas opções não significa que as funções de busca e debrid
-estejam ativadas. A versão publicada do Felipe Vídeos permanece 1.3.0
-até que uma integração completa seja implementada e validada.
+Na ficha de um filme comercial do Cinemeta, depois de configurar Prowlarr e
+seu token, aparece **Reproduzir automaticamente (PT-BR)**. Essa opção
+executa a consulta, classifica os resultados, tenta até cinco candidatos
+e envia ao Kodi uma URL HTTPS se um serviço debrid a resolver.
+
+O código **não cadastra nem habilita indexadores automaticamente**: eles
+precisam ser configurados no Prowlarr. O identificador IMDb identifica o
+filme no catálogo, mas não confirma que alguma cópia esteja disponível.
+O reconhecimento do idioma é heurístico pelo nome da release.
+
+A integração foi verificada por análise estática e testes do repositório,
+mas ainda depende de testes reais com contas configuradas. A etapa de
+polling pode durar até 60 segundos se o serviço debrid não completar.
+
+## 8. Exemplo de mapping.json
+
+O arquivo real `src/plugin.video.flyghtxmz/resources/data/mapping.json`
+começa como `{}`, que é JSON válido. Como **JSON não aceita comentários**,
+o exemplo fica aqui, sem entrar automaticamente na distribuição:
+
+```json
+{
+  "tt1254207": {
+    "sources": [
+      {
+        "title": "Big Buck Bunny (exemplo) 1080p PT-BR",
+        "quality": "1080p",
+        "seeders": 3,
+        "magnet": "magnet:?xt=urn:btih:SUBSTITUIR_POR_HASH_REAL"
+      }
+    ]
+  }
+}
+```
+
+O título, idioma e magnet são **ilustrativos**, não são uma release
+verificada. Um magnet verdadeiro deve ser fornecido pelo responsável
+pela distribuição autorizada. Deixe o campo de URL do Prowlarr vazio
+para ativar o fallback pelo arquivo local.
