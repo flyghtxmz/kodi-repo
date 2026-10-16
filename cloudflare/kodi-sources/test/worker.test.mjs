@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import worker from "../src/index.mjs";
 
-const token = "test-secret-not-for-production";
-const env = { KODI_API_TOKEN: token };
+const env = {};
 const url = "https://example.workers.dev/v1/sources?imdb=tt1254207&title=Big%20Buck%20Bunny&year=2008";
 
 test("health endpoint is public", async () => {
@@ -12,15 +11,19 @@ test("health endpoint is public", async () => {
   assert.equal((await response.json()).ok, true);
 });
 
-test("sources require bearer authentication", async () => {
-  const response = await worker.fetch(new Request(url), env);
-  assert.equal(response.status, 401);
+test("sources are public read-only; a failing upstream yields 502", async () => {
+  const saved = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("offline test"); };
+  try {
+    const response = await worker.fetch(new Request(url), env);
+    assert.equal(response.status, 502);
+  } finally {
+    globalThis.fetch = saved;
+  }
 });
 
 test("invalid imdb is rejected", async () => {
-  const response = await worker.fetch(new Request(url.replace("tt1254207", "../bad"), {
-    headers: { Authorization: "Bearer " + token },
-  }), env);
+  const response = await worker.fetch(new Request(url.replace("tt1254207", "../bad")), env);
   assert.equal(response.status, 400);
 });
 
@@ -45,12 +48,11 @@ test("licensed Internet Archive entry is returned; no invented seeders or langua
     throw new Error("Unexpected upstream request: " + target);
   };
   try {
-    const response = await worker.fetch(new Request(url, {
-      headers: { Authorization: "Bearer " + token },
-    }), env);
+    const response = await worker.fetch(new Request(url), env);
     assert.equal(response.status, 200);
     const result = await response.json();
     assert.equal(result.sources.length, 1);
+    assert.match(response.headers.get("cache-control"), /max-age=300/);
     assert.equal(result.sources[0].quality, "1080p");
     assert.equal(result.sources[0].seeders, null);
     assert.equal(result.sources[0].language, "unknown");
@@ -69,9 +71,7 @@ test("unlicensed results never appear", async () => {
     }] },
   }), { status: 200 });
   try {
-    const response = await worker.fetch(new Request(url, {
-      headers: { Authorization: "Bearer " + token },
-    }), env);
+    const response = await worker.fetch(new Request(url), env);
     assert.equal((await response.json()).sources.length, 0);
   } finally {
     globalThis.fetch = saved;

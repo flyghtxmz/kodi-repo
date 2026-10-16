@@ -12,18 +12,10 @@ function json(data, status = 200) {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
+      "cache-control": status === 200 ? "public, max-age=300" : "no-store",
       "x-content-type-options": "nosniff",
     },
   });
-}
-function equalSecret(a, b) {
-  if (!a || !b) return false;
-  // Length is not a secret; compare equal-length strings without early exit.
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }
 function norm(value) {
   return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
@@ -123,10 +115,8 @@ export default {
     if (request.method !== "GET") return json({ error: "method_not_allowed" }, 405);
     if (url.pathname === "/health") return json({ ok: true, version: "0.1", deployed: true });
     if (url.pathname !== "/v1/sources") return json({ error: "not_found" }, 404);
-    if (!env.KODI_API_TOKEN) return json({ error: "service_not_configured" }, 503);
-    const authorization = request.headers.get("authorization") || "";
-    if (!equalSecret(authorization, "Bearer " + env.KODI_API_TOKEN))
-      return json({ error: "unauthorized" }, 401);
+    // API pública somente de leitura, com entradas restritas, sem tokens em clientes Kodi.
+    // A autenticação de administração continua fora deste Worker.
     const title = (url.searchParams.get("title") || "").trim();
     const imdb = (url.searchParams.get("imdb") || "").trim();
     const year = (url.searchParams.get("year") || "").trim();

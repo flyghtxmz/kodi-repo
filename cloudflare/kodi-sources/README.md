@@ -1,68 +1,60 @@
 # Felipe Vídeos — Cloudflare Sources API
 
-Worker para busca dinâmica de torrents **distribuídos em acervos com licenças abertas**.
-Executa no Cloudflare e devolve dados para uma tela de seleção no Kodi. Não executa
-BitTorrent no Cloudflare, não exige Prowlarr e não configura provedores do Elementum.
+Endpoint público **somente de leitura** para fontes de vídeos abertos do Internet Archive.
+A consulta retorna apenas arquivos com licença Creative Commons declarada nos
+metadados, revalidada antes de exibir torrents. O próprio Elementum do Kodi
+é usado apenas para reproduzir o torrent escolhido.
 
-## Publicar no seu Cloudflare
+## Sem digitar URL ou token no Kodi
 
-Os arquivos deste diretório são código-fonte. **Não há Worker publicado por este commit.**
-Execute, a partir de `cloudflare/kodi-sources`:
+O addon descobre a URL do Worker automaticamente pelo arquivo versionado
+`cloudflare/kodi-sources/endpoint.json` no GitHub. Esse arquivo armazena
+**somente o endereço HTTPS público** do Worker (não é segredo).
 
-```sh
-npx wrangler login
-npx wrangler secret put KODI_API_TOKEN
-npx wrangler deploy
+Depois de publicar o Worker, informe o endereço resultante para incluí-lo
+no arquivo `endpoint.json`, no formato:
+
+```json
+{"endpoint": "https://felipe-videos-sources.SEU-SUBDOMINIO.workers.dev"}
 ```
 
-O comando de secret solicitará um valor **forte e exclusivo** e o salvará nas configurações
-privadas do Worker; nunca o inclua no repositório, no arquivo `wrangler.toml`,
-em screenshots nem em URLs. Guarde o token também nas configurações locais do Kodi.
+O endereço acima é apenas um exemplo e **não é uma implantação real**.
+O valor inicial vazio significa que a ligação com a conta ainda não foi feita.
+Quando o endereço estiver cadastrado, o Kodi passa a descobri-lo
+automaticamente, sem alterar configurações da TV Box nem atualizar o ZIP.
 
-Copie o endereço HTTPS exibido pelo Wrangler, normalmente
-`https://felipe-videos-sources.<seu-subdominio>.workers.dev`.
-Esse endereço é um exemplo de formato, **não** é um endpoint existente.
+## Publicação
 
-## API
+O Wrangler já estando autenticado:
 
-- `GET /health`: `{"ok":true,"version":"0.1","deployed":true}`.
-- `GET /v1/sources?imdb=tt1254207&title=Big%20Buck%20Bunny&year=2008`
-  retorna `{imdb,title,year,sources:[...],providers:["Internet Archive"]}`.
-- A rota de fontes exige `Authorization: Bearer <seu token>` no cabeçalho.
-- Cada fonte inclui `title,source,quality,size,seeders,language,url,type`.
-  Os torrents encontrados são do acervo Internet Archive com declaração Creative Commons
-  validada pelo metadado antes de apresentar o arquivo.
-- `seeders: null` significa **desconhecido**, não zero.
-- `language: "unknown"` significa áudio **não verificado**.
-- `sources: []` significa que nenhuma fonte com os critérios foi encontrada.
-
-O Worker recebe o IMDb ID do catálogo, mas a origem atual não oferece consulta
-por IMDb: a seleção é feita por **título e ano**. Filmes comerciais recentes que
-não estão em acervos abertos normalmente retornarão lista vazia. Não é uma API
-para localizar cópias comerciais sem autorização.
-
-## Testes sem Cloudflare
-
-```sh
-node --test test/worker.test.mjs
+```powershell
+npx wrangler deploy .\cloudflare\kodi-sources\src\index.mjs --name felipe-videos-sources --compatibility-date 2026-10-16
 ```
 
-## Conectar ao Felipe Vídeos
+Se já existir um Worker com código anterior que exigia `KODI_API_TOKEN`,
+é necessário **publicar a versão atualizada**; a versão antiga continuará
+exigindo esse cabeçalho até receber o novo deploy. O segredo antigo pode
+permanecer armazenado no Cloudflare; o código desta versão não o utiliza.
 
-No Kodi, abra **Add-ons > Felipe Vídeos > Configure > Cloudflare** e informe
-**URL HTTPS do Worker** e **Token da API**. Depois abra um filme e escolha
-**Fontes via Cloudflare**. O addon apresenta as opções e envia a fonte
-selecionada ao Elementum como reprodutor. Elementum não precisa ter
-provedores de pesquisa instalados.
+## Rotas
 
-As URLs e tokens são settings locais no Kodi, nunca versionados no GitHub.
-A integração Prowlarr existente permanece opcional e separada.
+- `GET /health`: estado e versão.
+- `GET /v1/sources?imdb=tt1254207&title=Big%20Buck%20Bunny&year=2008`:
+  resposta com uma lista de torrents de acervos abertos.
+- `sources: []`: nenhuma fonte encontrada.
+- `seeders: null`, `language: unknown`: não informado pela fonte.
 
-## Limites e operação
+A rota de fontes é pública e **não requer token**. Isso é deliberado: um
+token incluído no GitHub público ou distribuído no ZIP do Kodi pode ser
+extraído por qualquer pessoa. Em caso de uso elevado, configure regras
+de rate limiting/WAF na sua conta Cloudflare. O Worker valida parâmetros,
+limita resultados e usa cache para reduzir requisições repetidas.
 
-- Cloudflare Workers é um proxy leve de **metadados**, não um downloader, indexador
-  BitTorrent ou cache de arquivos.
-- Há limites de consultas, latência e quotas da sua conta Cloudflare.
-- Não use este endpoint como proxy aberto nem inclua tokens em logs.
-- O código de produção deve ser mantido atualizado conforme alterações nas APIs
-  das fontes e no formato de resposta.
+Este Worker não pesquisa indexadores de filmes comerciais e não
+reproduz nem armazena torrents no Cloudflare.
+
+## Testes
+
+```sh
+node --test cloudflare/kodi-sources/test/worker.test.mjs
+```

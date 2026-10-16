@@ -2,3 +2,7 @@ name = "felipe-videos-sources"
 main = "src/index.mjs"
 compatibility_date = "2026-10-16"
 workers_dev = true
+
+# Respostas públicas de leitura servidas por cache para reduzir chamadas upstream.
+[cache]
+enabled = true
