@@ -11,8 +11,8 @@ import xml.etree.ElementTree as ET
 
 import xbmcvfs
 
-ROOT = "https://flyghtxmz.github.io/kodi-repo/"
-TARGETS = ("addons.xml.md5", "addons.xml", "repository.flyghtxmz-1.0.1.zip")
+ROOT = "https://raw.githubusercontent.com/flyghtxmz/kodi-repo/main/"
+TARGETS = ("addons.xml.md5", "addons.xml", "repository.flyghtxmz-1.0.3.zip")
 
 
 def _data(value):
@@ -64,7 +64,7 @@ def recent_errors():
 
 
 def run_diagnostic():
-    results = ["Felipe Vídeos 1.1.1 - Kodi 21.2", "Teste de conectividade local", ""]
+    results = ["Felipe Vídeos 1.1.2 - Kodi 21.2", "Teste de conectividade local", ""]
     kodi_results = {}
     python_results = {}
     for target in TARGETS:

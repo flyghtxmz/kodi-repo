@@ -156,7 +156,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.1.1",
+        "Felipe Vídeos 1.1.2",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "

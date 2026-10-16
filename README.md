@@ -2,9 +2,9 @@
 
 Fonte Kodi no GitHub Pages: https://flyghtxmz.github.io/kodi-repo/
 
-No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.2.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
+No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.3.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
 
-## Felipe Vídeos 1.1.1 (Kodi 21.2 Omega)
+## Felipe Vídeos 1.1.2 (Kodi 21.2 Omega)
 
 - Reprodução de URL direta de vídeo, com clipe de teste CC0.
 - Digitação/colagem de magnet link (`magnet:?xt=urn:btih:...`) ou URL HTTP(S) terminada em `.torrent`.
@@ -21,12 +21,16 @@ Rode `python tools/build_repo.py` para gerar ZIPs, `addons.xml` e `addons.xml.md
 
 ## Diagnóstico de conectividade (Kodi Omega)
 
-O instalador do repositório 1.0.2 inclui a dependência `xbmc.addon` e declara `<hashes>false</hashes>`. Se o Kodi mostrar **Could not connect to repository**, reinstale o ZIP 1.0.2 e use o comando **Check for updates** no menu de contexto do repositório. Para investigar erros persistentes, verifique a conectividade do Kodi com `addons.xml` e envie o `kodi.log` com o erro de `CRepository`/TLS.
+O instalador do repositório 1.0.3 inclui a dependência `xbmc.addon` e declara `<hashes>false</hashes>`. Se o Kodi mostrar **Could not connect to repository**, reinstale o ZIP 1.0.3 e use o comando **Check for updates** no menu de contexto do repositório. Para investigar erros persistentes, verifique a conectividade do Kodi com `addons.xml` e envie o `kodi.log` com o erro de `CRepository`/TLS.
 
 ## Diagnóstico (TV Box / Android TV)
 
 Se **Install from repository** mostrar `Could not connect to repository`, é possível instalar o vídeo addon independentemente do repositório: **Install from zip file > Felipe Addons > Felipe Vídeos - instalador direto e diagnóstico** (link no índice da fonte). Depois abra **Video add-ons > Felipe Vídeos > Diagnosticar repositório**. O relatório usa Kodi VFS/cURL e Python HTTPS no mesmo aparelho, valida o checksum e procura mensagens do Kodi relacionadas ao repositório. Envie uma foto da tela de resultados; não publique logs completos sem revisar dados pessoais.
 
-## Release do repositório 1.0.2
+## Release do repositório 1.0.3
 
 Numeração do instalador aumentada de 1.0.1 para 1.0.2 para o Kodi reconhecer a versão atual. Esta mudança, por si só, não comprova que o erro de conexão ao catálogo foi resolvido.
+
+## Correção de conectividade 1.0.3
+
+A fonte de instalação permanece em `https://flyghtxmz.github.io/kodi-repo/` (GitHub Pages), enquanto o manifesto do repositório instalado lê `addons.xml`, `addons.xml.md5` e os pacotes ZIP em `https://raw.githubusercontent.com/flyghtxmz/kodi-repo/main/`. Essa separação reproduz a estratégia observada no manifesto `repository.cineroom` v1.0.1. Instale o ZIP 1.0.3 para substituir as URLs antigas no Kodi; a alteração só pode ser validada completamente em um Kodi real.

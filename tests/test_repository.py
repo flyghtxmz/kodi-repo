@@ -12,6 +12,7 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE_URL = "https://flyghtxmz.github.io/kodi-repo/"
+BASE_REPO_URL = "https://raw.githubusercontent.com/flyghtxmz/kodi-repo/main/"
 
 class RepositoryTests(unittest.TestCase):
     def test_addons_index_is_well_formed_and_matches_zips(self):
@@ -36,9 +37,9 @@ class RepositoryTests(unittest.TestCase):
     def test_repo_urls_and_install_source(self):
         manifest = ET.parse(ROOT / "src/repository.flyghtxmz/addon.xml")
         directory = manifest.find("./extension[@point='xbmc.addon.repository']/dir")
-        self.assertEqual(directory.findtext("info"), BASE_URL + "addons.xml")
-        self.assertEqual(directory.findtext("checksum"), BASE_URL + "addons.xml.md5")
-        self.assertEqual(directory.findtext("datadir"), BASE_URL)
+        self.assertEqual(directory.findtext("info"), BASE_REPO_URL + "addons.xml")
+        self.assertEqual(directory.findtext("checksum"), BASE_REPO_URL + "addons.xml.md5")
+        self.assertEqual(directory.findtext("datadir"), BASE_REPO_URL)
         self.assertEqual(directory.find("datadir").attrib["zip"], "true")
         version = manifest.getroot().attrib["version"]
         filename = f"repository.flyghtxmz-{version}.zip"
