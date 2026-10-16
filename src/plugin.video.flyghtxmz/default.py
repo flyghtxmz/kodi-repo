@@ -83,12 +83,19 @@ def show_recent(category, page=1, term=""):
     xbmcplugin.setContent(HANDLE, "tvshows" if category.startswith("series_") or category == "search_series" else "movies")
     try:
         results, more = list_titles(category, page=page, search_term=term)
+        # Sinopses PT-BR ficam no painel da capa, não no popup de opções.
+        # O cache evita novas consultas em visitas seguintes ao catálogo.
+        from metadata_ptbr import descriptions_for_catalog, FALLBACK_SYNOPSIS
+        try:
+            synopses = descriptions_for_catalog(results)
+        except (OSError, ValueError, TypeError) as error:
+            xbmc.log("Felipe Vídeos: cache de sinopses indisponível ({})".format(
+                type(error).__name__), xbmc.LOGWARNING)
+            synopses = {}
         for movie in results:
-            # O catálogo Cinemeta pode fornecer sinopse em inglês.
-            # A tradução PT-BR só é consultada quando a pessoa abre a ficha,
-            # evitando 100 requisições adicionais por página.
+            cache_key = "{}:{}".format(movie["type"], movie["id"])
             info = {"title": movie["title"],
-                    "plot": "Abra o título para consultar a sinopse em português (Brasil)."}
+                    "plot": synopses.get(cache_key, FALLBACK_SYNOPSIS)}
             match = re.match(r"^(\d{4})", movie.get("year") or "")
             if match:
                 info["year"] = int(match.group(1))
@@ -115,10 +122,7 @@ def show_recent_detail(identifier, media):
         options = [("Buscar fontes", "sources")]
         if movie.get("trailer_id"):
             options.append(("Ver trailer", "recent_trailer"))
-        options.extend([
-            ("Onde assistir no Brasil", "recent_where"),
-            ("Sinopse e detalhes", "recent_info"),
-        ])
+        options.append(("Onde assistir no Brasil", "recent_where"))
         rating = movie.get("rating") or "Indisponível"
         rating_label = rating + "/10" if rating != "Indisponível" else rating
         heading = "{} ({}) | IMDb: {}".format(

@@ -107,6 +107,13 @@ class PluginTests(unittest.TestCase):
             def textviewer(self, title, content):
                 calls["dialogs"].append((title, content))
 
+        metadata_stub = types.ModuleType("metadata_ptbr")
+        metadata_stub.FALLBACK_SYNOPSIS = "Sinopse em português (Brasil) ainda não disponível."
+        metadata_stub.descriptions_for_catalog = lambda movies: {
+            "{}:{}".format(movie["type"], movie["id"]):
+                "Uma história envolvente apresentada em português do Brasil."
+            for movie in movies
+        }
         cloudflare_stub = types.ModuleType("cloudflare_client")
         cloudflare_stub.list_sources = lambda title, year="", imdb="": source_items if source_items is not None else [{
             "title": "Vídeo autorizado", "quality": "1080p", "size": 1024,
@@ -148,7 +155,8 @@ class PluginTests(unittest.TestCase):
         argv = ["plugin://plugin.video.flyghtxmz/", "15", "?" + urlencode(arguments) if arguments else ""]
         with patch.dict(sys.modules, {"xbmc": xbmc, "xbmcaddon": xbmcaddon, "xbmcgui": xbmcgui,
                                       "xbmcplugin": xbmcplugin,
-                                      "recent": recent_stub, "cloudflare_client": cloudflare_stub}):
+                                      "recent": recent_stub, "cloudflare_client": cloudflare_stub,
+                                      "metadata_ptbr": metadata_stub}):
             with patch.object(sys, "argv", argv):
                 runpy.run_path(str(ROOT / "src/plugin.video.flyghtxmz/default.py"), run_name="__main__")
         return calls
@@ -180,6 +188,9 @@ class PluginTests(unittest.TestCase):
         self.assertFalse(result["items"][0]["isFolder"])
         self.assertIn("tt1234567", result["items"][0]["url"])
         self.assertEqual(result["items"][0]["listitem"].info["year"], 2026)
+        self.assertEqual(result["items"][0]["listitem"].info["plot"],
+                         "Uma história envolvente apresentada em português do Brasil.")
+        self.assertNotIn("Abra o título", result["items"][0]["listitem"].info["plot"])
 
     def test_popup_title_choices_without_new_folder(self):
         result = self.run_addon("recent_detail",
@@ -188,7 +199,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(result["items"], [])
         self.assertEqual(len(result["popups"]), 1)
         self.assertEqual(result["popups"][0][1],
-            ["Buscar fontes", "Ver trailer", "Onde assistir no Brasil", "Sinopse e detalhes"])
+            ["Buscar fontes", "Ver trailer", "Onde assistir no Brasil"])
         self.assertEqual(result["commands"], [])
 
     def test_popup_source_selection_starts_elementum(self):

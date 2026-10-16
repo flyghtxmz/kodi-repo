@@ -69,7 +69,7 @@ class RecentCatalogTests(unittest.TestCase):
             titles, _ = REC.list_titles("movies_prev", page=2, year=2026)
         self.assertEqual([item["title"] for item in titles],
                          ["Aventura", "Zorro"])
-        self.assertIn("skip=100", fetch.call_args.args[0])
+        self.assertIn("skip=20", fetch.call_args.args[0])
 
     def test_search_query_is_encoded(self):
         with patch.object(REC, "fetch", return_value={"metas": []}) as fetch:

@@ -14,8 +14,8 @@ BASE = "https://v3-cinemeta.strem.io"
 IMDB_ID = re.compile(r"^tt[0-9]{5,12}$")
 YOUTUBE_ID = re.compile(r"^[a-zA-Z0-9_-]{11}$")
 MAX_SIZE = 2_000_000
-PAGES = 20
-PER_PAGE = 100
+PAGES = 100
+PER_PAGE = 20
 CATEGORIES = (
     ("movies_new", "Filmes de {year}"),
     ("movies_prev", "Filmes de {prev_year}"),
