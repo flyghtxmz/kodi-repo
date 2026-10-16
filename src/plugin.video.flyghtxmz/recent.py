@@ -20,11 +20,45 @@ CATEGORIES = (
     ("movies_new", "Lançamentos de {year}"),
     ("movies_prev", "Filmes de {prev_year}"),
     ("movies_popular", "Filmes em alta"),
-    ("movies_rating", "Mais bem avaliados (IMDb)"),
+    ("movies_best_rated", "Mais bem avaliados no IMDb"),
+    ("movies_action", "Ação"),
+    ("movies_adventure", "Aventura"),
+    ("movies_animation", "Animação"),
+    ("movies_comedy", "Comédia"),
+    ("movies_crime", "Crime"),
+    ("movies_documentary", "Documentários"),
+    ("movies_drama", "Drama"),
+    ("movies_family", "Família"),
+    ("movies_fantasy", "Fantasia"),
+    ("movies_horror", "Terror"),
+    ("movies_mystery", "Mistério"),
+    ("movies_romance", "Romance"),
+    ("movies_scifi", "Ficção científica"),
+    ("movies_thriller", "Suspense"),
     ("series_new", "Séries de {year}"),
+    ("series_prev", "Séries de {prev_year}"),
     ("series_popular", "Séries em alta"),
-    ("series_rating", "Mais bem avaliadas (IMDb)"),
+    ("series_best_rated", "Mais bem avaliadas no IMDb"),
+    ("series_action", "Ação"),
+    ("series_adventure", "Aventura"),
+    ("series_animation", "Animação"),
+    ("series_comedy", "Comédia"),
+    ("series_crime", "Crime"),
+    ("series_documentary", "Documentários"),
+    ("series_drama", "Drama"),
+    ("series_fantasy", "Fantasia"),
+    ("series_mystery", "Mistério"),
+    ("series_scifi", "Ficção científica"),
+    ("series_thriller", "Suspense"),
+    ("series_reality", "Reality shows"),
 )
+GENRE_CODES = {
+    "action":"Action","adventure":"Adventure","animation":"Animation",
+    "comedy":"Comedy","crime":"Crime","documentary":"Documentary",
+    "drama":"Drama","family":"Family","fantasy":"Fantasy",
+    "horror":"Horror","mystery":"Mystery","romance":"Romance",
+    "scifi":"Sci-Fi","thriller":"Thriller","reality":"Reality-TV",
+}
 
 # Gêneros confirmados pelo manifesto oficial Cinemeta; a URL usa os
 # identificadores originais do provedor, mas a interface fica em PT-BR.
@@ -98,29 +132,25 @@ def _url(media, catalog, extra=""):
 
 def _parts(category, year=None, query=None):
     year = year or date.today().year
-    if category == "movies_new":
-        return "movie", "year", "genre={}".format(year)
-    if category == "movies_prev":
-        return "movie", "year", "genre={}".format(year - 1)
-    if category == "movies_popular":
-        return "movie", "top", ""
-    if category == "series_new":
-        return "series", "year", "genre={}".format(year)
-    if category == "series_popular":
-        return "series", "top", ""
-    if category in ("movies_rating", "series_rating"):
-        return ("movie" if category == "movies_rating" else "series"), "imdbRating", ""
-    for prefix, media in (("movies_genre_", "movie"), ("series_genre_", "series")):
-        if category.startswith(prefix):
-            slug = category[len(prefix):]
-            if slug not in GENRE_LOOKUP or (media == "movie" and slug in ("reality", "talk", "game")):
-                raise ValueError("Gênero desconhecido.")
-            return media, "top", "genre=" + quote(GENRE_LOOKUP[slug], safe="")
     if category in ("search_movie", "search_series"):
         if not query or not isinstance(query, str) or not query.strip():
             raise ValueError("Digite um título.")
-        q = query.strip()[:80]
-        return ("movie" if category == "search_movie" else "series"), "top", "search=" + quote(q, safe="")
+        media = "movie" if category == "search_movie" else "series"
+        return media, "top", "search=" + quote(query.strip()[:80], safe="")
+    if category not in {name for name, _ in CATEGORIES}:
+        raise ValueError("Categoria desconhecida.")
+    media = "movie" if category.startswith("movies_") else "series"
+    suffix = category.split("_", 1)[1]
+    if suffix == "new":
+        return media, "year", "genre={}".format(year)
+    if suffix == "prev":
+        return media, "year", "genre={}".format(year - 1)
+    if suffix == "popular":
+        return media, "top", ""
+    if suffix == "best_rated":
+        return media, "imdbRating", ""
+    if suffix in GENRE_CODES:
+        return media, "top", "genre=" + quote(GENRE_CODES[suffix], safe="")
     raise ValueError("Categoria desconhecida.")
 
 
@@ -201,6 +231,11 @@ def detail(identifier, media="movie"):
         value["plot"] = synopsis
         value["rating"] = rating
         value["rating_checked_at"] = checked_at
+        from metadata_ptbr import localized_title
+        translated = localized_title(identifier, media)
+        if translated:
+            value["original_title"] = value["title"]
+            value["title"] = translated
         try:
             from metadata_ptbr import localized_title
             value["title"] = localized_title(identifier, media) or value["title"]
