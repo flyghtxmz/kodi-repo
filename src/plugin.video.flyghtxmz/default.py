@@ -169,14 +169,13 @@ def show_recent_detail(identifier, media):
 
 def choose_cloudflare_source(title, year="", imdb=""):
     """Exibe popup de fontes e entrega a escolhida ao Elementum."""
-    from cloudflare_client import list_sources
+    from source_client import list_sources
     try:
         sources = list_sources(title, year=year, imdb=imdb)
         if not sources:
             xbmcgui.Dialog().ok(
                 "Nenhuma fonte disponível",
-                "A API não retornou fontes compatíveis. Confira os provedores "
-                "configurados no Cloudflare.")
+                "Cloudflare e Torrentio não retornaram fontes compatíveis para este título.")
             return
         labels = []
         for source in sources:
@@ -189,14 +188,13 @@ def choose_cloudflare_source(title, year="", imdb=""):
         index = xbmcgui.Dialog().select("Selecionar fonte — {}".format(title), labels)
         if index is None or index < 0 or index >= len(sources):
             return
-        start_cloudflare_play(sources[index]["url"])
+        start_cloudflare_play(sources[index]["url"], file_index=sources[index].get("file_index"))
     except Exception as error:
         xbmc.log("Felipe Vídeos: consulta de fontes falhou ({})".format(
             type(error).__name__), xbmc.LOGERROR)
         xbmcgui.Dialog().ok(
             "Fontes indisponíveis",
-            "Não foi possível consultar as fontes. Verifique se o Worker está "
-            "publicado e se endpoint.json aponta para ele.")
+            "Não foi possível consultar as fontes. Verifique a conexão da TV Box.")
 
 
 def show_cloudflare_sources(title, year="", imdb=""):
@@ -205,7 +203,7 @@ def show_cloudflare_sources(title, year="", imdb=""):
     choose_cloudflare_source(title, year=year, imdb=imdb)
 
 
-def start_cloudflare_play(url):
+def start_cloudflare_play(url, file_index=None):
     """Reproduz somente URI validada pelo cliente no Elementum."""
     from cloudflare_client import is_supported_source
     if not is_supported_source(url):
@@ -214,7 +212,7 @@ def start_cloudflare_play(url):
     if elementum_addon() is None:
         missing_elementum()
         return
-    xbmc.executebuiltin("PlayMedia({})".format(build_elementum_url(url)))
+    xbmc.executebuiltin("PlayMedia({})".format(build_elementum_url(url, file_index=file_index)))
 
 
 def play_cloudflare_source(url):
@@ -307,9 +305,15 @@ def validate_torrent_uri(raw):
     return None, "Aceito apenas magnet links ou URLs HTTP(S) de arquivos .torrent."
 
 
-def build_elementum_url(uri):
+def build_elementum_url(uri, file_index=None):
     """urlencode escapa &, vírgulas e parênteses para não confundir o Kodi."""
-    return "{}?{}".format(ELEMENTUM_PLAY_URL, urlencode({"uri": uri}))
+    params = {"uri": uri}
+    if file_index is not None:
+        if type(file_index) is not int or not 0 <= file_index <= 100_000:
+            raise ValueError("Índice de arquivo inválido.")
+        # Torrentio usa a ordem original do torrent; Elementum chama isso oindex.
+        params["oindex"] = file_index
+    return "{}?{}".format(ELEMENTUM_PLAY_URL, urlencode(params))
 
 
 def elementum_addon():

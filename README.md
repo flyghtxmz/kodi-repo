@@ -6,7 +6,20 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.4.0
+## Felipe Vídeos 1.4.1
+
+**Torrentio direto no Kodi:** a busca de fontes de filmes consulta o Worker e o
+Torrentio em paralelo, pela conexão da própria TV Box. Os resultados aparecem
+no mesmo seletor, com deduplicação por hash e arquivo. Se uma origem falhar,
+as fontes da outra continuam disponíveis. Não é necessário token.
+
+O Torrentio tem cache local de cinco minutos, limitado a 32 títulos e 1 MB.
+Áudio brasileiro explicitamente declarado tem prioridade; indicação genérica
+de português permanece `pt`. Nos pacotes, `fileIdx` é repassado ao Elementum
+como **`oindex`**, que corresponde à ordem original dos arquivos do torrent.
+Pacotes sem índice específico são descartados. O acesso ainda depende da
+disponibilidade do serviço e da conexão da TV Box; não há proxy ou resolução
+automática de desafios de acesso.
 
 **Tela principal**
 
@@ -83,7 +96,7 @@ Para a reprodução de torrents, instale Elementum separadamente. BitTorrent
 pode expor o seu IP aos peers e transmitir dados a outros usuários. Utilize
 somente arquivos cuja distribuição e reprodução são autorizadas.
 
-## Integração Torrentio — preparação
+## Integração Torrentio no Worker — histórico
 
 Adaptador opcional em `cloudflare/kodi-sources/src/torrentio.mjs`, com
 validação de IMDb ID, timeout de 8 segundos, limite de resposta e deduplicação
@@ -92,9 +105,8 @@ O Worker publicado manualmente na Cloudflare **não foi modificado**.
 Sincronize o código customizado antes de habilitar o adaptador; veja
 [as instruções específicas](cloudflare/kodi-sources/README.md).
 
-O Kodi 1.3.7 faz uma segunda deduplicação por hash e prioriza PT-BR declarado,
-sem inferir áudio pelo nome do indexador. O Elementum pode exigir a escolha
-manual do arquivo de vídeo no caso de torrents com múltiplos arquivos.
+Na versão 1.4.1 a consulta é direta no Kodi, e a seleção de arquivos fornecida
+pelo Torrentio é preservada até o Elementum. O Worker não precisa consultar o Torrentio.
 
 ## Sinopses PT-BR e notas IMDb (1.3.8)
 

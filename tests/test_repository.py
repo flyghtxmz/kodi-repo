@@ -165,6 +165,7 @@ class PluginTests(unittest.TestCase):
         with patch.dict(sys.modules, {"xbmc": xbmc, "xbmcaddon": xbmcaddon, "xbmcgui": xbmcgui,
                                       "xbmcplugin": xbmcplugin,
                                       "recent": recent_stub, "cloudflare_client": cloudflare_stub,
+                                      "source_client": cloudflare_stub,
                                       "metadata_ptbr": metadata_stub}):
             with patch.object(sys, "argv", argv):
                 runpy.run_path(str(ROOT / "src/plugin.video.flyghtxmz/default.py"), run_name="__main__")
@@ -244,6 +245,18 @@ class PluginTests(unittest.TestCase):
                     query={"identifier": "tt1234567"}, popup_choices=picks)
                 self.assertEqual(result["commands"], [])
                 self.assertEqual(result["dialogs"], [])
+
+    def test_source_file_index_is_sent_as_elementum_original_index(self):
+        for file_index in (0, 3):
+            result = self.run_addon("recent_detail", query={"identifier": "tt1234567"},
+                popup_choices=[0, 0], source_items=[{
+                    "title": "Arquivo do pacote", "source": "Torrentio", "quality": "1080p",
+                    "language": "pt-br", "seeders": 8, "size": 1024,
+                    "url": "https://media.example.org/video.torrent", "file_index": file_index,
+                }])
+            self.assertEqual(len(result["commands"]), 1)
+            self.assertIn("&oindex={})".format(file_index), result["commands"][0])
+            self.assertNotIn("&index=", result["commands"][0])
 
     def test_empty_sources_shows_message(self):
         result = self.run_addon("recent_detail",
