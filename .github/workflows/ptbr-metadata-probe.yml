@@ -1,0 +1,52 @@
+name: Probe Portuguese Metadata Addon
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/ptbr-metadata-probe.yml']
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test PT-BR metadata provider (read-only)
+        shell: bash
+        run: |
+          mkdir -p /tmp/ptbr-probe && cd /tmp/ptbr-probe
+          npm install --no-save --no-audit --no-fund lz-string
+          node <<'JS'
+          const z=require('lz-string');
+          const https=require('node:https');
+          const base='https://94c8cb9f702d-tmdb-addon.baby-beamup.club';
+          const cfg=z.compressToEncodedURIComponent(JSON.stringify({language:'pt-BR'}));
+          console.log('ENCODED_CONFIG',cfg);
+          function fetch(url){
+            return new Promise((resolve,reject)=>{
+              const req=https.get(url,{timeout:12000,headers:{'User-Agent':'KodiFelipeVideos/1.4','Accept':'application/json'}},res=>{
+                let text='';
+                res.on('data',c=>{text+=c;if(text.length>400000)req.destroy()});
+                res.on('end',()=>{try{resolve({status:res.statusCode,body:JSON.parse(text)})}catch(e){resolve({status:res.statusCode,error:'invalid_json'})}});
+              });
+              req.on('timeout',()=>req.destroy(new Error('timeout')));
+              req.on('error',reject);
+            });
+          }
+          (async()=>{
+           for(const [label,url] of [
+             ['default',base+'/meta/movie/tt0111161.json'],
+             ['ptBR',base+'/'+cfg+'/meta/movie/tt0111161.json'],
+             ['ptBRseries',base+'/'+cfg+'/meta/series/tt0944947.json']
+           ]){
+             try{
+               const r=await fetch(url),m=r.body?.meta||{};
+               console.log(label,'HTTP',r.status,'keys',Object.keys(m).slice(0,12).join(','),
+                 'description',JSON.stringify((m.description||'').slice(0,240)),
+                 'name',JSON.stringify(m.name||''),'rating',m.imdbRating||'absent');
+             }catch(e){console.log(label,'NETWORK_ERROR',e.message.slice(0,100))}
+           }
+          })();
+          JS
