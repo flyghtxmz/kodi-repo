@@ -1,0 +1,28 @@
+name: Check authorized torrent assets
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/authorized-torrent-probe.yml"]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check torrent files from open Blender movie editions
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "src/plugin.video.flyghtxmz")
+          import catalog
+          for key, item in catalog.OPEN_MOVIES.items():
+              ident=item["source_id"]
+              data=catalog.fetch_json(catalog.METADATA_ROOT+ident)
+              files=data.get("files") or []
+              torrents=[(f.get("name"),f.get("source")) for f in files if str(f.get("name","")).lower().endswith(".torrent")]
+              print("TORRENT_ASSETS",key,ident,torrents[:8],"LICENSE",data.get("metadata",{}).get("licenseurl"))
+          print("TORRENT_PROBE_FINISHED")
+          PY
