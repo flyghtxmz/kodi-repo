@@ -6,11 +6,14 @@ Internet Archive e não afirma que o áudio de terceiros seja PT-BR.
 """
 import re
 from urllib.parse import urlsplit
+import json
 
 import requests
 import xbmcaddon
 
 
+DISCOVERY_URL = ("https://raw.githubusercontent.com/flyghtxmz/kodi-repo/"
+                 "main/cloudflare/kodi-sources/endpoint.json")
 MAX_RESPONSE_BYTES = 250_000
 TIMEOUT = 14
 IMDB_ID = re.compile(r"^tt[0-9]{5,12}$")
@@ -27,6 +30,20 @@ def _worker_url(value):
             parsed.path not in ("", "/")):
         raise ValueError("A URL deve ser HTTPS e apontar para a raiz do Worker.")
     return value
+
+
+def configured_endpoint():
+    """Obtém endpoint de arquivo público sem gravar segredo no addon."""
+    addon = xbmcaddon.Addon()
+    manual = addon.getSetting("cloudflare_endpoint").strip()
+    if manual:
+        return _worker_url(manual)
+    with requests.get(DISCOVERY_URL, timeout=8, stream=True) as response:
+        response.raise_for_status()
+        payload = _read_json(response)
+    if not isinstance(payload, dict) or not payload.get("endpoint"):
+        raise ValueError("O endereço do Worker ainda não foi publicado no projeto.")
+    return _worker_url(payload["endpoint"])
 
 
 def is_supported_source(url):
@@ -60,10 +77,7 @@ def _read_json(response):
 
 def list_sources(title, year="", imdb=""):
     addon = xbmcaddon.Addon()
-    endpoint = _worker_url(addon.getSetting("cloudflare_endpoint"))
-    token = addon.getSetting("cloudflare_token").strip()
-    if not token:
-        raise ValueError("Configure o token da API Cloudflare no Kodi.")
+    endpoint = configured_endpoint()
     title = " ".join((title or "").split())[:120]
     year = str(year or "")[:4]
     if not title:
@@ -76,7 +90,6 @@ def list_sources(title, year="", imdb=""):
         url,
         params={"title": title, "year": year, "imdb": imdb},
         headers={
-            "Authorization": "Bearer " + token,
             "Accept": "application/json",
         },
         timeout=TIMEOUT,
