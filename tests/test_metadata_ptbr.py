@@ -66,6 +66,38 @@ class MetadataPtbrTests(unittest.TestCase):
             old= META.enrich("tt0111161", "movie", "", now=100000 + META.RATING_TTL)
         self.assertEqual(old[1], "8.6")
 
+    def test_catalog_prefetch_renders_ptbr_descriptions_and_caches_them(self):
+        titles = [
+            {"id": "tt0111161", "type": "movie"},
+            {"id": "tt0944947", "type": "series"},
+        ]
+        def translated(identifier, media, timeout=9):
+            return "Sinopse em português: " + identifier
+        with patch.object(META, "_read_ptbr_description", side_effect=translated) as get:
+            first = META.descriptions_for_catalog(titles, now=100000)
+            second = META.descriptions_for_catalog(titles, now=100500)
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(first, second)
+        self.assertIn("Sinopse em português", first["movie:tt0111161"])
+        self.assertIn("Sinopse em português", first["series:tt0944947"])
+
+    def test_catalog_prefetch_handles_timeout_and_throttles_retry(self):
+        movies = [{"id": "tt0111161", "type": "movie"}]
+        with patch.object(META, "_read_ptbr_description", side_effect=TimeoutError()) as get:
+            first = META.descriptions_for_catalog(movies, now=100000)
+            again = META.descriptions_for_catalog(movies, now=100100)
+        self.assertEqual(get.call_count, 1)
+        self.assertEqual(first, again)
+        self.assertEqual(first["movie:tt0111161"], META.FALLBACK_SYNOPSIS)
+
+    def test_catalog_prefetch_respects_twenty_item_page_limit(self):
+        movies = [{"id": "tt%07d" % (1000000 + i), "type": "movie"}
+                  for i in range(23)]
+        with patch.object(META, "_read_ptbr_description", return_value="Tradução") as get:
+            results = META.descriptions_for_catalog(movies, now=100000)
+        self.assertEqual(len(results), 20)
+        self.assertEqual(get.call_count, 20)
+
     def test_source_url_is_ptbr_configured_and_id_checked(self):
         self.assertEqual(
             META.TMDB_STREMIO_BASE,
