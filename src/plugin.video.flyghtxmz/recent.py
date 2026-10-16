@@ -6,6 +6,7 @@ mostra os trailers oficiais (se disponíveis) e o buscador de serviços autoriza
 from datetime import date
 import json
 import re
+import unicodedata
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
@@ -116,6 +117,13 @@ def list_titles(category, page=1, search_term="", year=None):
         normalized = normalize(item, media)
         if normalized:
             results.append(normalized)
+    # Ordenação A-Z independente de maiúsculas, acentos e idioma da interface.
+    # Cinemeta pagina por sua própria ordem: a ordenação vale para os itens carregados.
+    def alphabetical_key(item):
+        value = unicodedata.normalize("NFKD", item["title"].casefold())
+        return ("".join(char for char in value if not unicodedata.combining(char)),
+                item["id"])
+    results.sort(key=alphabetical_key)
     return results, len(raw_items) >= PER_PAGE and page < PAGES
 
 
