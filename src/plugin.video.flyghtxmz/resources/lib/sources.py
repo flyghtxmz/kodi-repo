@@ -36,8 +36,34 @@ def _read_mapping(imdb_id):
         return []
     with MAPPING.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
+    if not isinstance(payload, dict):
+        return []
     item = payload.get(imdb_id) or {}
     return item.get("sources") or [] if isinstance(item, dict) else []
+
+
+def _eligible(candidates, minimum_rank, minimum_seeders):
+    matches = []
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        release = str(item.get("title") or "")
+        if not _pt_audio(release):
+            continue
+        try:
+            seeds = int(item.get("seeders") or 0)
+        except (ValueError, TypeError):
+            seeds = 0
+        quality_label = item.get("quality") or _infer_quality(release)
+        score = RANK.get(quality_label, -1)
+        if seeds < minimum_seeders or score < minimum_rank:
+            continue
+        if not isinstance(item.get("magnet"), str):
+            continue
+        if not item["magnet"].startswith("magnet:?"):
+            continue
+        matches.append((score, seeds, item))
+    return matches
 
 
 def get_playable_url(imdb_id, title, year):
@@ -52,25 +78,12 @@ def get_playable_url(imdb_id, title, year):
             candidates = search_torrents(imdb_id, title, year, language_tag=tag)
         else:
             candidates = _read_mapping(imdb_id)
-        matches = []
-        for item in candidates:
-            if not isinstance(item, dict):
-                continue
-            release = str(item.get("title") or "")
-            if not _pt_audio(release):
-                continue
-            try:
-                seeds = int(item.get("seeders") or 0)
-            except (ValueError, TypeError):
-                seeds = 0
-            quality_label = item.get("quality") or _infer_quality(release)
-            if seeds < min_seeders or RANK.get(quality_label, 0) < rank:
-                continue
-            if not isinstance(item.get("magnet"), str):
-                continue
-            if not item["magnet"].startswith("magnet:?"):
-                continue
-            matches.append((RANK[quality_label], seeds, item))
+        matches = _eligible(candidates, rank, min_seeders)
+        # Se não houver resultados PT com a tag, tenta outros indexadores
+        # configurados e aplica exatamente os mesmos filtros.
+        if not matches and prowlarr_url and tag:
+            fallback = search_torrents(imdb_id, title, year, language_tag="")
+            matches = _eligible(fallback, rank, min_seeders)
         matches.sort(key=lambda row: (row[0], row[1]), reverse=True)
         for _, _, source in matches[:5]:
             playable_url = resolve_magnet(source["magnet"])
