@@ -4,7 +4,7 @@ Fonte Kodi no GitHub Pages: https://flyghtxmz.github.io/kodi-repo/
 
 No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.3.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
 
-## Felipe Vídeos 1.2.2 (Kodi 21.2 Omega)
+## Felipe Vídeos 1.3.0 (Kodi 21.2 Omega)
 
 - Reprodução de URL direta de vídeo, com clipe de teste CC0.
 - Digitação/colagem de magnet link (`magnet:?xt=urn:btih:...`) ou URL HTTP(S) terminada em `.torrent`.
@@ -36,7 +36,7 @@ Numeração do instalador aumentada de 1.0.1 para 1.0.2 para o Kodi reconhecer a
 A fonte de instalação permanece em `https://flyghtxmz.github.io/kodi-repo/` (GitHub Pages), enquanto o manifesto do repositório instalado lê `addons.xml`, `addons.xml.md5` e os pacotes ZIP em `https://raw.githubusercontent.com/flyghtxmz/kodi-repo/main/`. Essa separação reproduz a estratégia observada no manifesto `repository.cineroom` v1.0.1. Instale o ZIP 1.0.3 para substituir as URLs antigas no Kodi; a alteração só pode ser validada completamente em um Kodi real.
 
 
-## Felipe Vídeos 1.2.2 — Catálogo automático
+## Felipe Vídeos 1.3.0 — Catálogo automático
 
 - Menu de Mais populares, Filmes, Séries e programas, Documentários, Animações e Curtas-metragens.
 - Busca por título, capas, sinopse, paginação e reprodução sem digitar links.
@@ -54,3 +54,10 @@ A primeira tela de destaques apresenta quatro filmes abertos da Blender Foundati
 ### Ajuste de fontes (1.2.2)
 
 A seleção de destaques utiliza identificadores pré-curados de filmes abertos da Blender Foundation, mas consulta os metadados do Internet Archive para resolver automaticamente o MP4 atual, confirmar a licença informada e evitar URLs de demonstração inacessíveis no Google Storage. A lista é de cinco filmes, incluindo Cosmos Laundromat.
+
+
+## Filmes atuais — Felipe Vídeos 1.3.0
+
+Novos menus **Filmes de 2026**, **Filmes do ano anterior**, **Filmes em alta**, **Séries recentes**, **Séries em alta**, e **Buscar lançamentos e séries**. O addon consulta o serviço público Cinemeta no momento de abrir cada seção (atualização dinâmica sem API key), com capas, sinopses e trailers fornecidos pelo Cinemeta. As fichas incluem link para busca de serviços oficiais na JustWatch Brasil (abertura via Chrome no Android TV se instalado), e trailers podem ser vistos com o addon oficial YouTube do Kodi.
+
+**A listagem de lançamentos é informativa**: não transmite obras comerciais nem oferece torrents ou fontes não autorizadas. A reprodução integral continua nas seções de licença aberta, resolvida automaticamente. Metadados podem incluir filmes anunciados ainda não lançados; o status deve ser verificado na plataforma distribuidora. O repositório continua 1.0.3.

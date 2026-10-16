@@ -6,6 +6,7 @@ instalado no mesmo Kodi. O buffer e o armazenamento pertencem ao Elementum.
 
 import re
 import sys
+from datetime import date
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import xbmc
@@ -49,6 +50,12 @@ def finish():
 def show_menu():
     from catalog import CATEGORIES
     xbmcplugin.setContent(HANDLE, "videos")
+    from recent import CATEGORIES as RECENT_CATEGORIES
+    year = date.today().year
+    for category, label in RECENT_CATEGORIES:
+        add_item(label.format(year=year, prev_year=year-1), "recent", folder=True, category=category)
+    add_item("Buscar lançamentos e séries", "recent_search")
+    add_item("— Filmes completos de licença aberta —", "open_catalog_info")
     for category, title in CATEGORIES:
         add_item(title, "catalog", folder=True, category=category)
     add_item("Pesquisar filmes e vídeos", "search")
@@ -62,6 +69,93 @@ def show_menu():
     add_item("Configurar URL do meu vídeo", "settings")
     add_item("Sobre o addon", "about")
     finish()
+
+
+def show_recent(category, page=1, term=""):
+    from recent import list_titles
+    xbmcplugin.setContent(HANDLE, "movies")
+    try:
+        results, more = list_titles(category, page=page, search_term=term)
+        for movie in results:
+            info = {"title": movie["title"], "plot": movie["plot"] or "Consulte a ficha do título."}
+            match = re.match(r"^(\\d{4})", movie.get("year") or "")
+            if match:
+                info["year"] = int(match.group(1))
+            art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
+            add_item(movie["title"], "recent_detail", folder=True, artwork=art, info=info,
+                     identifier=movie["id"], media=movie["type"])
+        if more:
+            add_item("Próxima página >>", "recent", folder=True, category=category,
+                     page=page+1, term=term)
+        if not results:
+            xbmcgui.Dialog().ok("Nenhum título", "Não há títulos nesta seção no momento.")
+    except Exception as exc:
+        xbmcgui.Dialog().ok("Catálogo de lançamentos", "Erro ao consultar títulos: " + str(exc)[:170])
+    finish()
+
+
+def show_recent_detail(identifier, media):
+    from recent import detail
+    xbmcplugin.setContent(HANDLE, "movies")
+    try:
+        movie = detail(identifier, media=media)
+        art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
+        info = {"title": movie["title"], "plot": movie["plot"] or "Sinopse indisponível"}
+        if movie["trailer_id"]:
+            add_item("▶ Ver trailer (YouTube)", "recent_trailer", artwork=art,
+                     info=info, identifier=identifier, media=media)
+        add_item("Onde assistir no Brasil (serviços oficiais)", "recent_where",
+                 artwork=art, info=info, identifier=identifier, media=media)
+        add_item("Sinopse e detalhes", "recent_info", artwork=art, info=info,
+                 identifier=identifier, media=media)
+    except Exception as exc:
+        xbmcgui.Dialog().ok("Detalhes indisponíveis", str(exc)[:200])
+    finish()
+
+
+def search_recent():
+    result = xbmcgui.Dialog().input("Nome do filme ou série", type=xbmcgui.INPUT_ALPHANUM)
+    finish()
+    if result and result.strip():
+        choice = xbmcgui.Dialog().select("O que deseja pesquisar?", ["Filmes", "Séries"])
+        if choice in (0, 1):
+            category = "search_movie" if choice == 0 else "search_series"
+            xbmc.executebuiltin("Container.Update({})".format(plugin_url(
+                "recent", category=category, page=1, term=result.strip()[:80])))
+
+
+def show_recent_action(action, identifier, media):
+    from recent import detail, justwatch_search_url
+    finish()
+    try:
+        movie = detail(identifier, media=media)
+        if action == "recent_info":
+            desc = "{} ({})\\n\\n{}\\n\\nNota IMDb: {}".format(
+                movie["title"], movie["year"], movie["plot"] or "Sem sinopse",
+                movie["rating"] or "Indisponível")
+            xbmcgui.Dialog().textviewer(movie["title"], desc)
+        elif action == "recent_trailer":
+            yt_id = movie["trailer_id"]
+            if not yt_id:
+                xbmcgui.Dialog().ok("Trailer indisponível", "Não há trailer disponível para este título.")
+                return
+            try:
+                xbmcaddon.Addon(id="plugin.video.youtube")
+            except Exception:
+                xbmcgui.Dialog().ok("YouTube necessário",
+                    "Instale o addon YouTube pelo repositório oficial do Kodi. "
+                    "Assim o Felipe Vídeos reproduzirá os trailers sem digitar URLs.")
+                return
+            xbmc.executebuiltin("PlayMedia(plugin://plugin.video.youtube/play/?video_id={})".format(yt_id))
+        elif action == "recent_where":
+            url = justwatch_search_url(movie["title"])
+            answer = xbmcgui.Dialog().yesno("Onde assistir — Brasil",
+                "Abrir pesquisa no navegador Chrome da TV Box?\\n\\n"
+                "A disponibilidade e o preço são informados pelo serviço externo.")
+            if answer:
+                xbmc.executebuiltin("StartAndroidActivity(com.android.chrome,android.intent.action.VIEW,,{})".format(url))
+    except Exception as exc:
+        xbmcgui.Dialog().ok("Não foi possível abrir", str(exc)[:220])
 
 
 def show_catalog(category, page=1, term=""):
@@ -216,7 +310,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.2.2",
+        "Felipe Vídeos 1.3.0",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -228,7 +322,25 @@ def main():
     params = parse_qs(sys.argv[2].lstrip("?")) if len(sys.argv) > 2 else {}
     action = params.get("action", [""])[0]
 
-    if action == "catalog":
+    if action == "recent":
+        try:
+            page = int(params.get("page", ["1"])[0])
+        except ValueError:
+            page = 1
+        show_recent(params.get("category", ["movies_new"])[0],
+                    page=page, term=params.get("term", [""])[0])
+    elif action == "recent_detail":
+        show_recent_detail(params.get("identifier", [""])[0],
+                           params.get("media", ["movie"])[0])
+    elif action in ("recent_info", "recent_where", "recent_trailer"):
+        show_recent_action(action, params.get("identifier", [""])[0],
+                           params.get("media", ["movie"])[0])
+    elif action == "recent_search":
+        search_recent()
+    elif action == "open_catalog_info":
+        finish()
+        xbmcgui.Dialog().ok("Filmes completos", "As seções abaixo contêm filmes disponíveis para reprodução, com licenças abertas.")
+    elif action == "catalog":
         try:
             page = int(params.get("page", ["1"])[0])
         except ValueError:

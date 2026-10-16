@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="plugin.video.flyghtxmz" name="Felipe Vídeos" version="1.2.2" provider-name="flyghtxmz">
+<addon id="plugin.video.flyghtxmz" name="Felipe Vídeos" version="1.3.0" provider-name="flyghtxmz">
     <requires>
         <import addon="xbmc.python" version="3.0.0" />
     </requires>
@@ -8,7 +8,7 @@
     </extension>
     <extension point="xbmc.addon.metadata">
         <summary lang="pt_BR">Felipe Vídeos para Kodi 21: streaming autorizado por magnet e vídeo direto</summary>
-        <description lang="pt_BR">Catálogo de vídeos Creative Commons com busca, capas e reprodução automática sem colar URLs. Integração opcional com Elementum.</description>
+        <description lang="pt_BR">Filmes e séries atuais com capas, sinopses, trailers e onde assistir. Seção de filmes completos de licença aberta e integração opcional com Elementum.</description>
         <disclaimer lang="pt_BR">Utilize apenas conteúdos que você tem direito de reproduzir.</disclaimer>
         <platform>all</platform>
         <language>pt</language>
