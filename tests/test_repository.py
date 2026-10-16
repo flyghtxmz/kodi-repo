@@ -124,7 +124,7 @@ class PluginTests(unittest.TestCase):
             ("series_new", "Séries de {year}"),
             ("series_popular", "Séries em alta"),
         )
-        recent_stub.list_titles = lambda **kwargs: ([{
+        recent_stub.list_titles = lambda category, **kwargs: ([{
             "id":"tt1234567", "type":"movie", "title":"Movie Recent",
             "year":"2026", "plot":"Sinopse", "poster":"https://example.org/poster.jpg",
         }], False)
