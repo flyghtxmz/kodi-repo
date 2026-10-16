@@ -104,6 +104,9 @@ def show_recent_detail(identifier, media):
         if media == "movie" and ADDON.getSetting("prowlarr_api_key").strip():
             add_item("Reproduzir automaticamente (PT-BR)", "recent_play", playable=True,
                      artwork=art, info=info, identifier=identifier)
+        if media == "movie":
+            add_item("Pesquisar no Elementum (sem Prowlarr)", "recent_elementum",
+                     artwork=art, info=info, identifier=identifier)
         if movie["trailer_id"]:
             add_item("▶ Ver trailer (YouTube)", "recent_trailer", artwork=art,
                      info=info, identifier=identifier, media=media)
@@ -114,6 +117,28 @@ def show_recent_detail(identifier, media):
     except Exception as exc:
         xbmcgui.Dialog().ok("Detalhes indisponíveis", str(exc)[:200])
     finish()
+
+
+def open_recent_in_elementum(identifier):
+    """Abre a pesquisa do Elementum com o título do filme no catálogo."""
+    from recent import detail
+    finish()
+    if elementum_addon() is None:
+        missing_elementum()
+        return
+    try:
+        movie = detail(identifier, media="movie")
+        title = movie.get("title") or ""
+        year = str(movie.get("year") or "")[:4]
+        query = " ".join(part for part in (title, year) if part).strip()
+        if not query:
+            raise ValueError("Título não informado.")
+        target = "plugin://plugin.video.elementum/search?" + urlencode({"q": query})
+        xbmc.executebuiltin("Container.Update({})".format(target))
+    except Exception as error:
+        xbmc.log("Felipe Vídeos: busca Elementum indisponível: {}".format(
+            type(error).__name__), xbmc.LOGERROR)
+        xbmcgui.Dialog().ok("Elementum", "Não foi possível abrir a busca.")
 
 
 def play_recent_auto(identifier):
@@ -380,7 +405,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.3.1",
+        "Felipe Vídeos 1.3.2",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -404,6 +429,8 @@ def main():
                            params.get("media", ["movie"])[0])
     elif action == "recent_play":
         play_recent_auto(params.get("identifier", [""])[0])
+    elif action == "recent_elementum":
+        open_recent_in_elementum(params.get("identifier", [""])[0])
     elif action in ("recent_info", "recent_where", "recent_trailer"):
         show_recent_action(action, params.get("identifier", [""])[0],
                            params.get("media", ["movie"])[0])
