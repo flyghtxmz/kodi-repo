@@ -36,11 +36,17 @@ jobs:
               try:
                   movie = catalog.playback(item["identifier"])
                   print("PLAYBACK_OK", movie["title"], movie["url"][:150])
-                  assert movie["url"].startswith("https://archive.org/download/")
+                  assert movie["url"].startswith(("https://archive.org/download/", catalog.GOOGLE_SAMPLES))
                   playback_found = True
                   break
               except Exception as error:
                   print("NOT_PLAYABLE", item["identifier"], type(error).__name__, str(error)[:120])
           assert playback_found, "Nenhum dos primeiros filmes possui vídeo compatível"
+          for film in catalog.featured():
+              movie = catalog.playback(film["identifier"])
+              with urllib.request.urlopen(urllib.request.Request(movie["url"], method="HEAD"), timeout=10) as response:
+                  print("FEATURED_HTTP", film["title"], response.status,
+                        response.headers.get("Content-Type"), response.headers.get("Content-Length"))
+                  assert response.status == 200
           print("CATALOG_LIVE_OK")
           PY

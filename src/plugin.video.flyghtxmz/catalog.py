@@ -21,7 +21,7 @@ IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$")
 TAGS_RE = re.compile(r"<[^>]*>")
 BASE_QUERY = "mediatype:movies AND licenseurl:http*creativecommons.org*"
 CATEGORIES = (
-    ("destaques", "Mais populares"),
+    ("destaques", "Destaques — filmes abertos"),
     ("filmes", "Filmes"),
     ("series", "Séries e programas"),
     ("documentarios", "Documentários"),
@@ -37,6 +37,47 @@ FILTERS = {
     "curtas": "(subject:short OR subject:shortfilm)",
     "busca": "",
 }
+
+
+GOOGLE_SAMPLES = "https://storage.googleapis.com/gtv-videos-bucket/sample/"
+OPEN_MOVIES = {
+    "openmovie.BigBuckBunny": {
+        "title": "Big Buck Bunny", "year": 2008,
+        "plot": "Um coelho gigante e gentil enfrenta três pequenos provocadores. Filme aberto da Blender Foundation (CC BY 3.0).",
+        "filename": "BigBuckBunny", "creator": "Blender Foundation",
+        "license": "https://creativecommons.org/licenses/by/3.0/",
+    },
+    "openmovie.Sintel": {
+        "title": "Sintel", "year": 2010,
+        "plot": "Uma jovem procura seu amigo dragão. Curta de fantasia da Blender Foundation (CC BY 3.0).",
+        "filename": "Sintel", "creator": "Blender Foundation",
+        "license": "https://creativecommons.org/licenses/by/3.0/",
+    },
+    "openmovie.ElephantsDream": {
+        "title": "Elephants Dream", "year": 2006,
+        "plot": "Dois personagens exploram um mundo surreal de máquinas. Primeiro filme aberto da Blender Foundation (CC BY 2.5).",
+        "filename": "ElephantsDream", "creator": "Blender Foundation",
+        "license": "https://creativecommons.org/licenses/by/2.5/",
+    },
+    "openmovie.TearsOfSteel": {
+        "title": "Tears of Steel", "year": 2012,
+        "plot": "Ficção científica com atores reais e efeitos visuais. Filme aberto da Blender Foundation (CC BY 3.0).",
+        "filename": "TearsOfSteel", "creator": "Blender Foundation",
+        "license": "https://creativecommons.org/licenses/by/3.0/",
+    },
+}
+
+
+def featured():
+    return [{
+        "identifier": key,
+        "title": item["title"],
+        "plot": item["plot"],
+        "creator": item["creator"],
+        "year": item["year"],
+        "license": item["license"],
+        "thumb": GOOGLE_SAMPLES + "images/" + item["filename"] + ".jpg",
+    } for key, item in OPEN_MOVIES.items()]
 
 
 def _string(value):
@@ -107,6 +148,8 @@ def make_query(category, search_term=""):
 
 
 def search(category="destaques", page=1, search_term=""):
+    if category == "destaques":
+        return featured(), False
     page = max(1, min(int(page), MAX_PAGE))
     params = [
         ("q", make_query(category, search_term)),
@@ -141,6 +184,14 @@ def search(category="destaques", page=1, search_term=""):
 
 def playback(identifier):
     ident = sanitize_identifier(identifier)
+    if ident in OPEN_MOVIES:
+        item = OPEN_MOVIES[ident]
+        return {
+            "url": GOOGLE_SAMPLES + item["filename"] + ".mp4",
+            "title": item["title"], "plot": item["plot"],
+            "license": item["license"], "creator": item["creator"],
+            "thumb": GOOGLE_SAMPLES + "images/" + item["filename"] + ".jpg",
+        }
     data = fetch_json(METADATA_ROOT + quote(ident, safe=""))
     info = data.get("metadata") or {}
     if not isinstance(info, dict) or not open_license(info.get("licenseurl")):

@@ -44,9 +44,19 @@ class CatalogTests(unittest.TestCase):
     def test_search_pagination(self):
         with patch.object(CAT, "fetch_json", return_value={"response": {
             "numFound": 300, "docs": []}}):
-            result, more = CAT.search("destaques", page=2)
+            result, more = CAT.search("curtas", page=2)
         self.assertEqual(result, [])
         self.assertTrue(more)
+
+    def test_featured_open_movies_have_auto_resolved_urls(self):
+        with patch.object(CAT, "fetch_json", side_effect=AssertionError("Featured must be local")):
+            items, next_page = CAT.search("destaques")
+            self.assertEqual(len(items), 4)
+            self.assertFalse(next_page)
+            self.assertEqual(items[0]["title"], "Big Buck Bunny")
+            movie = CAT.playback(items[0]["identifier"])
+            self.assertTrue(movie["url"].endswith("BigBuckBunny.mp4"))
+            self.assertTrue(CAT.open_license(movie["license"]))
 
     def test_playback_autoselects_compatible_file(self):
         item = {"metadata": {
