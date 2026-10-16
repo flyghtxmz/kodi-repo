@@ -55,7 +55,7 @@ class RepositoryTests(unittest.TestCase):
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
 
 class PluginTests(unittest.TestCase):
-    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, catalog_data=None, cloudflare_endpoint=""):
+    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint=""):
         calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": []}
         xbmc = types.ModuleType("xbmc")
         xbmcaddon = types.ModuleType("xbmcaddon")
@@ -105,26 +105,15 @@ class PluginTests(unittest.TestCase):
             def textviewer(self, title, content):
                 calls["dialogs"].append((title, content))
 
-        catalog_stub = types.ModuleType("catalog")
-        catalog_stub.CATEGORIES = (
-            ("destaques", "Mais populares"), ("filmes", "Filmes"),
-            ("series", "Séries e programas"), ("documentarios", "Documentários"),
-            ("animacoes", "Animações"), ("curtas", "Curtas-metragens"),
-        )
-        catalog_stub.search = lambda **kwargs: (catalog_data if catalog_data is not None else [], False)
-        catalog_stub.playback = lambda identifier: {
-            "title": "Vídeo licenciado", "url": "https://archive.org/download/demo/clip.mp4",
-            "plot": "Teste", "thumb": "https://archive.org/services/img/demo",
-        }
         cloudflare_stub = types.ModuleType("cloudflare_client")
         cloudflare_stub.list_sources = lambda title, year="", imdb="": [{
-            "title": "Big Buck Bunny", "quality": "720p", "size": 1024,
-            "source": "Internet Archive", "seeders": None,
-            "language": "unknown",
-            "url": "https://archive.org/download/Bunny/Bunny_archive.torrent",
+            "title": "Vídeo autorizado", "quality": "1080p", "size": 1024,
+            "source": "Provedor de teste", "seeders": 8,
+            "language": "pt-br",
+            "url": "https://media.example.org/video.torrent",
         }]
         cloudflare_stub.is_supported_source = lambda url: (
-            url == "https://archive.org/download/Bunny/Bunny_archive.torrent")
+            url == "https://media.example.org/video.torrent")
         recent_stub = types.ModuleType("recent")
         recent_stub.CATEGORIES = (
             ("movies_new", "Filmes de {year}"),
@@ -156,55 +145,32 @@ class PluginTests(unittest.TestCase):
         arguments.update(query or {})
         argv = ["plugin://plugin.video.flyghtxmz/", "15", "?" + urlencode(arguments) if arguments else ""]
         with patch.dict(sys.modules, {"xbmc": xbmc, "xbmcaddon": xbmcaddon, "xbmcgui": xbmcgui,
-                                      "xbmcplugin": xbmcplugin, "catalog": catalog_stub,
+                                      "xbmcplugin": xbmcplugin,
                                       "recent": recent_stub, "cloudflare_client": cloudflare_stub}):
             with patch.object(sys, "argv", argv):
                 runpy.run_path(str(ROOT / "src/plugin.video.flyghtxmz/default.py"), run_name="__main__")
         return calls
 
-    def test_menu_without_custom_video(self):
+    def test_main_menu_is_short_and_categorized(self):
         result = self.run_addon()
-        self.assertEqual(len(result["items"]), 21)
+        self.assertEqual(len(result["items"]), 5)
+        labels = [i["listitem"].label for i in result["items"]]
+        self.assertEqual(labels, ["Filmes", "Séries", "Buscar filmes e séries",
+                                  "Ferramentas", "Sobre o Felipe Vídeos"])
         self.assertEqual(len(result["ends"]), 1)
-        self.assertTrue(result["items"][18]["listitem"].properties.get("IsPlayable"))
+        self.assertNotIn("Archive", " ".join(labels))
+        self.assertNotIn("demo", " ".join(i["url"] for i in result["items"]))
 
-    def test_menu_with_custom_video(self):
-        result = self.run_addon(custom_url="https://example.com/test.mp4")
-        self.assertEqual(len(result["items"]), 22)
-
-    def test_catalog_shows_directories_and_search(self):
-        result = self.run_addon()
-        self.assertTrue(all(result["items"][index]["isFolder"] for index in range(5)))
-        self.assertTrue(all(result["items"][index]["isFolder"] for index in range(7, 13)))
-        self.assertIn("action=search", result["items"][13]["url"])
-
-    def test_catalog_lists_playable_items_with_cover(self):
-        entry = {"identifier": "demo_id", "title": "Vídeo licenciado", "plot": "Sinopse",
-                 "thumb": "https://archive.org/services/img/demo_id", "year": "2008"}
-        result = self.run_addon("catalog", query={"category": "destaques"},
-                                catalog_data=[entry])
-        self.assertEqual(len(result["items"]), 1)
-        video = result["items"][0]["listitem"]
-        self.assertEqual(video.info["title"], "Vídeo licenciado")
-        self.assertTrue(video.properties.get("IsPlayable"))
-        self.assertEqual(video.art["thumb"], entry["thumb"])
-
-    def test_catalog_plays_resolved_video_without_user_url(self):
-        result = self.run_addon("catalog_play", query={"identifier": "demo"})
-        self.assertEqual(result["resolved"][0][1], True)
-        self.assertIn("archive.org/download", result["resolved"][0][2].path)
-
-    def test_search_opens_catalog_using_user_title(self):
-        result = self.run_addon("search", magnet_input="Open Film")
-        self.assertEqual(len(result["commands"]), 1)
-        self.assertIn("category=busca", result["commands"][0])
-        self.assertIn("Open+Film", result["commands"][0])
-
-    def test_recent_menu_uses_dynamic_sections(self):
-        result = self.run_addon()
-        self.assertIn("Filmes de", result["items"][0]["listitem"].label)
-        self.assertIn("action=recent", result["items"][0]["url"])
-        self.assertIn("action=recent_search", result["items"][5]["url"])
+    def test_sections_and_tools(self):
+        movies = self.run_addon("sections", query={"media": "movie"})
+        series = self.run_addon("sections", query={"media": "series"})
+        tools = self.run_addon("tools")
+        self.assertEqual(len(movies["items"]), 3)
+        self.assertEqual(len(series["items"]), 2)
+        self.assertEqual(len(tools["items"]), 5)
+        self.assertTrue(all(x["isFolder"] for x in movies["items"]))
+        self.assertIn("torrent_input", tools["items"][0]["url"])
+        self.assertIn("elementum_settings", tools["items"][1]["url"])
 
     def test_recent_list_has_poster_and_details(self):
         result = self.run_addon("recent", query={"category": "movies_new"})
@@ -213,51 +179,30 @@ class PluginTests(unittest.TestCase):
         self.assertIn("tt1234567", result["items"][0]["url"])
         self.assertEqual(result["items"][0]["listitem"].info["year"], 2026)
 
-    def test_recent_details_offer_trailer_and_watch_options(self):
+    def test_recent_details_offer_only_relevant_actions(self):
         result = self.run_addon("recent_detail", query={"identifier": "tt1234567", "media": "movie"})
-        self.assertEqual(len(result["items"]), 5)
+        self.assertEqual(len(result["items"]), 4)
+        self.assertEqual(result["items"][0]["listitem"].label, "Buscar fontes")
         self.assertIn("cloudflare_sources", result["items"][0]["url"])
-        self.assertIn("recent_elementum", result["items"][1]["url"])
-        self.assertIn("recent_trailer", result["items"][2]["url"])
-        self.assertIn("recent_where", result["items"][3]["url"])
-        self.assertIn("recent_info", result["items"][4]["url"])
-
-    def test_elementum_film_search_without_prowlarr(self):
-        result = self.run_addon("recent_elementum", query={"identifier": "tt1234567"})
-        self.assertEqual(len(result["commands"]), 1)
-        self.assertIn("plugin.video.elementum/search?q=Movie+Recent+2026",
-                      result["commands"][0])
-
-    def test_elementum_film_search_without_elementum_installed(self):
-        result = self.run_addon("recent_elementum",
-                                query={"identifier": "tt1234567"},
-                                elementum_installed=False)
-        self.assertFalse(result["commands"])
-        self.assertEqual(result["dialogs"][0][0], "Elementum necessário")
-
-    def test_cloudflare_menu_only_when_configured(self):
-        plain = self.run_addon("recent_detail", query={"identifier": "tt1234567"})
-        self.assertIn("cloudflare_sources", " ".join(i["url"] for i in plain["items"]))
-        configured = self.run_addon(
-            "recent_detail", query={"identifier": "tt1234567"},
-            cloudflare_endpoint="https://example.workers.dev")
-        self.assertEqual(len(configured["items"]), len(plain["items"]))
-        self.assertIn("cloudflare_sources", configured["items"][0]["url"])
+        self.assertIn("recent_trailer", result["items"][1]["url"])
+        self.assertIn("recent_where", result["items"][2]["url"])
+        self.assertIn("recent_info", result["items"][3]["url"])
+        self.assertNotIn("recent_elementum", " ".join(x["url"] for x in result["items"]))
 
     def test_cloudflare_lists_source_and_hands_to_elementum(self):
         result = self.run_addon(
             "cloudflare_sources",
-            query={"title": "Big Buck Bunny", "year": "2008", "identifier": "tt1254207"})
+            query={"title": "Vídeo autorizado", "year": "2008", "identifier": "tt1234567"})
         self.assertEqual(len(result["items"]), 1)
         self.assertIn("cloudflare_play", result["items"][0]["url"])
         video = self.run_addon("cloudflare_play", query={
-            "url": "https://archive.org/download/Bunny/Bunny_archive.torrent"})
+            "url": "https://media.example.org/video.torrent"})
         self.assertEqual(len(video["commands"]), 1)
         self.assertIn("plugin.video.elementum/play?uri=", video["commands"][0])
 
     def test_cloudflare_rejects_untrusted_playback_links(self):
         result = self.run_addon("cloudflare_play", query={
-            "url": "https://evil.example/Bad_archive.torrent"})
+            "url": "file:///tmp/malicious.torrent"})
         self.assertEqual(result["commands"], [])
 
     def test_recent_where_opens_provider_search(self):
@@ -270,18 +215,6 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(len(result["commands"]), 1)
         self.assertIn("search_movie", result["commands"][0])
         self.assertIn("Avatar", result["commands"][0])
-
-    def test_demo_playback(self):
-        result = self.run_addon("demo")
-        handle, okay, video = result["resolved"][0]
-        self.assertTrue(okay)
-        self.assertEqual(handle, 15)
-        self.assertTrue(video.path.startswith("https://"))
-
-    def test_custom_playback_rejects_untrusted_scheme(self):
-        result = self.run_addon("custom", custom_url="file:///test.mp4")
-        self.assertFalse(result["resolved"][0][1])
-
 
     def test_magnet_input_calls_elementum_with_encoded_uri(self):
         from urllib.parse import parse_qs, urlsplit
