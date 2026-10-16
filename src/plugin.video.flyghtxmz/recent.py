@@ -23,44 +23,63 @@ CATEGORIES = (
     ("movies_new", "Filmes de {year}"),
     ("movies_prev", "Filmes de {prev_year}"),
     ("movies_popular", "Filmes populares"),
-    ("movies_trending", "Filmes em tendência"),
+    ("movies_trending", "Em tendência"),
     ("movies_latest", "Últimos lançamentos"),
-    ("movies_action", "Ação"),
-    ("movies_adventure", "Aventura"),
-    ("movies_comedy", "Comédia"),
-    ("movies_horror", "Terror"),
-    ("movies_thriller", "Suspense"),
-    ("movies_drama", "Drama"),
-    ("movies_scifi", "Ficção científica"),
-    ("movies_animation", "Animação"),
-    ("movies_romance", "Romance"),
-    ("movies_documentary", "Documentários"),
-    ("movies_family", "Família"),
     ("series_new", "Séries de {year}"),
     ("series_popular", "Séries populares"),
-    ("series_trending", "Séries em tendência"),
+    ("series_trending", "Em tendência"),
     ("series_latest", "Séries recentes"),
-    ("series_action", "Ação e aventura"),
-    ("series_comedy", "Comédia"),
-    ("series_crime", "Policial e crime"),
-    ("series_drama", "Drama"),
-    ("series_scifi", "Ficção científica e fantasia"),
-    ("series_mystery", "Mistério"),
-    ("series_documentary", "Documentários"),
-    ("series_animation", "Animação"),
-    ("series_family", "Família"),
+)
+GENRE_CATEGORIES = (
+    ("movies_genre_action", "Ação"),
+    ("movies_genre_adventure", "Aventura"),
+    ("movies_genre_comedy", "Comédia"),
+    ("movies_genre_crime", "Crime"),
+    ("movies_genre_drama", "Drama"),
+    ("movies_genre_horror", "Terror"),
+    ("movies_genre_thriller", "Suspense"),
+    ("movies_genre_scifi", "Ficção científica"),
+    ("movies_genre_animation", "Animação"),
+    ("movies_genre_romance", "Romance"),
+    ("movies_genre_documentary", "Documentários"),
+    ("movies_genre_family", "Família"),
+    ("movies_genre_fantasy", "Fantasia"),
+    ("movies_genre_war", "Guerra"),
+    ("movies_genre_history", "História"),
+    ("movies_genre_mystery", "Mistério"),
+    ("movies_genre_western", "Faroeste"),
+    ("series_genre_action", "Ação e aventura"),
+    ("series_genre_comedy", "Comédia"),
+    ("series_genre_crime", "Crime"),
+    ("series_genre_drama", "Drama"),
+    ("series_genre_scifi", "Ficção científica e fantasia"),
+    ("series_genre_mystery", "Mistério"),
+    ("series_genre_documentary", "Documentários"),
+    ("series_genre_animation", "Animação"),
+    ("series_genre_family", "Família"),
+    ("series_genre_reality", "Reality shows"),
+    ("series_genre_kids", "Infantis"),
+    ("series_genre_politics", "Guerra e política"),
+    ("series_genre_soap", "Novelas"),
+    ("series_genre_talk", "Talk shows"),
 )
 MOVIE_GENRES = {
     "action": "Ação", "adventure": "Aventura", "comedy": "Comédia",
-    "horror": "Terror", "thriller": "Thriller", "drama": "Drama",
-    "scifi": "Ficção científica", "animation": "Animação",
-    "romance": "Romance", "documentary": "Documentário", "family": "Família",
+    "crime": "Crime", "drama": "Drama", "horror": "Terror",
+    "thriller": "Thriller", "scifi": "Ficção científica",
+    "animation": "Animação", "romance": "Romance",
+    "documentary": "Documentário", "family": "Família",
+    "fantasy": "Fantasia", "war": "Guerra",
+    "history": "História", "mystery": "Mistério",
+    "western": "Faroeste",
 }
 SERIES_GENRES = {
     "action": "Action & Adventure", "comedy": "Comédia",
     "crime": "Crime", "drama": "Drama", "scifi": "Sci-Fi & Fantasy",
     "mystery": "Mistério", "documentary": "Documentário",
     "animation": "Animação", "family": "Família",
+    "reality": "Reality", "kids": "Kids",
+    "politics": "War & Politics", "soap": "Soap", "talk": "Talk",
 }
 
 
@@ -107,10 +126,20 @@ def _parts(category, year=None, query=None):
             raise ValueError("Digite um título.")
         return ("movie" if category == "search_movie" else "series"), "tmdb.search", (
             "search=" + quote(query.strip()[:80], safe=""))
+    if category.startswith("movies_genre_"):
+        genre = category[len("movies_genre_"):]
+        if genre not in MOVIE_GENRES:
+            raise ValueError("Gênero desconhecido.")
+        return "movie", "tmdb.top", "genre=" + quote(MOVIE_GENRES[genre], safe="")
+    if category.startswith("series_genre_"):
+        genre = category[len("series_genre_"):]
+        if genre not in SERIES_GENRES:
+            raise ValueError("Gênero desconhecido.")
+        return "series", "tmdb.top", "genre=" + quote(SERIES_GENRES[genre], safe="")
     if category.startswith("movies_"):
-        media, action, genres = "movie", category[7:], MOVIE_GENRES
+        media, action = "movie", category[7:]
     elif category.startswith("series_"):
-        media, action, genres = "series", category[7:], SERIES_GENRES
+        media, action = "series", category[7:]
     else:
         raise ValueError("Categoria desconhecida.")
     if action == "new":
@@ -123,8 +152,6 @@ def _parts(category, year=None, query=None):
         return media, "tmdb.trending", "genre=Week"
     if action == "latest":
         return media, "tmdb.latest", ""
-    if action in genres:
-        return media, "tmdb.top", "genre=" + quote(genres[action], safe="")
     raise ValueError("Categoria desconhecida.")
 
 
