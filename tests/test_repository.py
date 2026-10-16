@@ -199,7 +199,7 @@ class PluginTests(unittest.TestCase):
 
     def test_recent_list_has_poster_and_details(self):
         result = self.run_addon("recent", query={"category": "movies_new"})
-        self.assertEqual(len(result["items"]), 1)
+        self.assertEqual(len(result["items"]), 1, result["dialogs"])
         self.assertTrue(result["items"][0]["isFolder"])
         self.assertIn("tt1234567", result["items"][0]["url"])
         self.assertEqual(result["items"][0]["listitem"].info["year"], 2026)
