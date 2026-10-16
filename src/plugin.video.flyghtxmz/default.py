@@ -101,7 +101,7 @@ def show_recent_detail(identifier, media):
         movie = detail(identifier, media=media)
         art = {"thumb": movie["poster"], "poster": movie["poster"], "icon": movie["poster"]}
         info = {"title": movie["title"], "plot": movie["plot"] or "Sinopse indisponível"}
-        if media == "movie":
+        if media == "movie" and ADDON.getSetting("prowlarr_api_key").strip():
             add_item("Reproduzir automaticamente (PT-BR)", "recent_play", playable=True,
                      artwork=art, info=info, identifier=identifier)
         if movie["trailer_id"]:
