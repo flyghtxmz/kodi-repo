@@ -1,85 +1,57 @@
 # Felipe Addons — Kodi
 
-Fonte Kodi no GitHub Pages: https://flyghtxmz.github.io/kodi-repo/
+Instalação: https://flyghtxmz.github.io/kodi-repo/
 
-No Kodi: File manager > Add source > cole o URL; em Add-ons > Install from zip file, instale `repository.flyghtxmz-1.0.3.zip`. Em Install from repository, escolha `Felipe Addons - Repositório` e instale `Felipe Vídeos`.
+No Kodi, adicione esse endereço como fonte, instale
+`repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
+selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.3.0 (Kodi 21.2 Omega)
+## Felipe Vídeos 1.3.5
 
-- Reprodução de URL direta de vídeo, com clipe de teste CC0.
-- Digitação/colagem de magnet link (`magnet:?xt=urn:btih:...`) ou URL HTTP(S) terminada em `.torrent`.
-- Encaminhamento da reprodução ao **Elementum instalado separadamente** na TV Box (não é incluído no ZIP).
-- Atalho para abrir as configurações do Elementum, que controla buffer, armazenamento e limpeza.
+**Tela principal**
 
-**Dependência opcional:** instale e configure o Elementum seguindo https://elementumorg.github.io/getting-started/installation/ e abra-o uma vez antes de usar torrents. A versão 1.1.0 não procura torrents, não oferece catálogos de filmes, não controla o buffer por conta própria e não contém motor BitTorrent.
+- Filmes
+- Séries
+- Buscar filmes e séries
+- Ferramentas
+- Sobre o Felipe Vídeos
 
-**Privacidade:** BitTorrent pode compartilhar dados com outros peers e expor o endereço IP público. Utilize somente conteúdos cuja distribuição é autorizada.
+Filmes contém *Filmes de 2026*, *Filmes de 2025* e *Filmes em alta*
+(os anos são atualizados dinamicamente). Séries contém *Séries de 2026*
+e *Séries em alta*. O catálogo e as capas vêm do Cinemeta.
 
-## Manutenção
+Ao abrir um título aparecem **Buscar fontes**, trailer, onde assistir no
+Brasil e sinopse. A lista de fontes é obtida do Worker publicado na conta
+Cloudflare, cuja URL é lida automaticamente de
+[endpoint.json](cloudflare/kodi-sources/endpoint.json). Não precisa inserir
+endereço ou token na TV Box.
 
-Rode `python tools/build_repo.py` para gerar ZIPs, `addons.xml` e `addons.xml.md5`, e `python -m unittest discover -s tests -v` para os testes. O workflow `Publish Kodi addon packages` recompila e publica os artefatos a cada alteração do código-fonte.
+O addon bloqueia o provedor Internet Archive, mesmo que o Worker publicado
+ainda o retorne. A interface aceita torrents HTTPS e magnet links válidos;
+reprodução é delegada ao Elementum, sem buscar provedores dentro dele.
+Áudio PT-BR na lista é **declarado pela fonte**, não verificado.
 
-## Diagnóstico de conectividade (Kodi Omega)
+As antigas categorias de filmes abertos, clipe de demonstração, URL de vídeo
+pessoal, pesquisa duplicada pelo Elementum e menus Prowlarr/Debrid foram
+removidos. Ferramentas reúne diagnóstico, configurações do Elementum e
+entrada manual de magnet/.torrent.
 
-O instalador do repositório 1.0.3 inclui a dependência `xbmc.addon` e declara `<hashes>false</hashes>`. Se o Kodi mostrar **Could not connect to repository**, reinstale o ZIP 1.0.3 e use o comando **Check for updates** no menu de contexto do repositório. Para investigar erros persistentes, verifique a conectividade do Kodi com `addons.xml` e envie o `kodi.log` com o erro de `CRepository`/TLS.
+**Importante:** o código do Worker no repositório é apenas um template vazio.
+O Worker real pode conter modificações feitas diretamente na Cloudflare.
+Não faça redeploy deste template sem sincronizar previamente os indexadores
+customizados, pois ele substituiria a API atual.
 
-## Diagnóstico (TV Box / Android TV)
+## Desenvolvimento e testes
 
-Se **Install from repository** mostrar `Could not connect to repository`, é possível instalar o vídeo addon independentemente do repositório: **Install from zip file > Felipe Addons > Felipe Vídeos - instalador direto e diagnóstico** (link no índice da fonte). Depois abra **Video add-ons > Felipe Vídeos > Diagnosticar repositório**. O relatório usa Kodi VFS/cURL e Python HTTPS no mesmo aparelho, valida o checksum e procura mensagens do Kodi relacionadas ao repositório. Envie uma foto da tela de resultados; não publique logs completos sem revisar dados pessoais.
+```bash
+python tools/build_repo.py
+python -m unittest discover -s tests -v
+node --test cloudflare/kodi-sources/test/worker.test.mjs
+```
 
-## Release do repositório 1.0.3
+O build e os testes são executados automaticamente nos GitHub Actions.
+O repositório Kodi permanece na versão 1.0.3.
 
-Numeração do instalador aumentada de 1.0.1 para 1.0.2 para o Kodi reconhecer a versão atual. Esta mudança, por si só, não comprova que o erro de conexão ao catálogo foi resolvido.
-
-## Correção de conectividade 1.0.3
-
-A fonte de instalação permanece em `https://flyghtxmz.github.io/kodi-repo/` (GitHub Pages), enquanto o manifesto do repositório instalado lê `addons.xml`, `addons.xml.md5` e os pacotes ZIP em `https://raw.githubusercontent.com/flyghtxmz/kodi-repo/main/`. Essa separação reproduz a estratégia observada no manifesto `repository.cineroom` v1.0.1. Instale o ZIP 1.0.3 para substituir as URLs antigas no Kodi; a alteração só pode ser validada completamente em um Kodi real.
-
-
-## Felipe Vídeos 1.3.0 — Catálogo automático
-
-- Menu de Mais populares, Filmes, Séries e programas, Documentários, Animações e Curtas-metragens.
-- Busca por título, capas, sinopse, paginação e reprodução sem digitar links.
-- O addon consulta sob demanda a API do Internet Archive e resolve automaticamente a URL do vídeo escolhido, sem API key.
-- Itens filtrados pela licença Creative Commons ou domínio público declarada no catálogo; a licença é revalidada antes da reprodução. Não é o catálogo comercial do CineRoom.
-- A disponibilidade do catálogo varia com o Internet Archive. Elementum continua opcional para magnet links fornecidos pelo usuário.
-- O repositório Felipe Addons 1.0.3 permanece sem alteração, permitindo atualizar o addon pelo Kodi.
-
-
-### Seleção de destaque
-
-A primeira tela de destaques apresenta quatro filmes abertos da Blender Foundation (Big Buck Bunny, Sintel, Elephants Dream e Tears of Steel) usando vídeos de demonstração hospedados no Google Cloud Storage; o addon escolhe automaticamente as URLs, sem edição pelo usuário. Nas outras seções, a busca do Internet Archive ainda depende de metadados de licença informados pelos responsáveis de cada upload e pode conter classificações incorretas; o addon não garante a legitimidade de terceiros.
-
-
-### Ajuste de fontes (1.2.2)
-
-A seleção de destaques utiliza identificadores pré-curados de filmes abertos da Blender Foundation, mas consulta os metadados do Internet Archive para resolver automaticamente o MP4 atual, confirmar a licença informada e evitar URLs de demonstração inacessíveis no Google Storage. A lista é de cinco filmes, incluindo Cosmos Laundromat.
-
-
-## Filmes atuais — Felipe Vídeos 1.3.0
-
-Novos menus **Filmes de 2026**, **Filmes do ano anterior**, **Filmes em alta**, **Séries recentes**, **Séries em alta**, e **Buscar lançamentos e séries**. O addon consulta o serviço público Cinemeta no momento de abrir cada seção (atualização dinâmica sem API key), com capas, sinopses e trailers fornecidos pelo Cinemeta. As fichas incluem link para busca de serviços oficiais na JustWatch Brasil (abertura via Chrome no Android TV se instalado), e trailers podem ser vistos com o addon oficial YouTube do Kodi.
-
-**A listagem de lançamentos é informativa**: não transmite obras comerciais nem oferece torrents ou fontes não autorizadas. A reprodução integral continua nas seções de licença aberta, resolvida automaticamente. Metadados podem incluir filmes anunciados ainda não lançados; o status deve ser verificado na plataforma distribuidora. O repositório continua 1.0.3.
-
-
-## Felipe Vídeos 1.3.2 — pesquisa direta no Elementum (sem Prowlarr)
-
-Abra um **filme** do catálogo de lançamentos e selecione **Pesquisar no Elementum (sem Prowlarr)**. O Felipe Vídeos envia automaticamente título e ano para a pesquisa do Elementum instalado no Kodi. A lista de resultados aparece na interface do próprio Elementum; ali o usuário pode escolher qual fonte reproduzir.
-
-Este caminho **não exige Prowlarr, Real-Debrid nem TorBox**. É necessário ter o Elementum habilitado e configurar provedores de busca no próprio Elementum. Não há garantia de que uma busca retorne fontes, nem de que contenham áudio PT-BR. A integração avançada com Prowlarr continua disponível como opção separada somente quando configurada. O repositório permanece 1.0.3 e o addon passa a 1.3.2.
-
-
-## Felipe Vídeos 1.3.3 — API Cloudflare Sources (opcional)
-
-O addon aceita um Worker Cloudflare próprio para listar fontes de torrent de filmes abertos sem configurar Prowlarr nem provedores no Elementum.
-
-1. Publique `cloudflare/kodi-sources` na sua conta Cloudflare seguindo [o guia do Worker](cloudflare/kodi-sources/README.md).
-2. Configure a secret `KODI_API_TOKEN` no Cloudflare, e coloque o mesmo token nas settings **locais** do Kodi.
-3. No Kodi, abra **Felipe Vídeos → Configure → Cloudflare — fontes** e informe a URL HTTPS do Worker e o token.
-4. **Fontes abertas via Cloudflare** surgirá nas fichas dos filmes. Ela lista qualidade, tamanho e fonte, marcando áudio e seeders como desconhecidos quando não fornecidos.
-5. Ao escolher um torrent, o addon o envia ao Elementum para reprodução, sem requerer provedores de pesquisa nele.
-
-**Limite atual:** busca dinâmica no Internet Archive com verificação de licença Creative Commons declarada. O IMDb ID é carregado na consulta, mas o arquivo é identificado por título/ano e pode não ser encontrado. Filmes comerciais recentes em geral não têm fontes nesse acervo. Nenhum Worker foi implantado automaticamente na sua conta Cloudflare.
-
-A integração Prowlarr/debrid permanece opcional. O repositório continua em 1.0.3.
+Para a reprodução de torrents, instale Elementum separadamente. BitTorrent
+pode expor o seu IP aos peers e transmitir dados a outros usuários. Utilize
+somente arquivos cuja distribuição e reprodução são autorizadas.
