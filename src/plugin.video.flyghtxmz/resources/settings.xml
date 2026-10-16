@@ -60,5 +60,17 @@
                 </setting>
             </group>
         </category>
+        <category id="cloudflare" label="Cloudflare — fontes">
+            <group id="1">
+                <setting id="cloudflare_endpoint" type="string" label="URL HTTPS do Worker">
+                    <default/>
+                    <control type="edit" format="string"/>
+                </setting>
+                <setting id="cloudflare_token" type="string" label="Token da API Cloudflare">
+                    <default/>
+                    <control type="edit" format="string"><hidden>true</hidden></control>
+                </setting>
+            </group>
+        </category>
     </section>
 </settings>
