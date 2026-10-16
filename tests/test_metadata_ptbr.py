@@ -98,6 +98,36 @@ class MetadataPtbrTests(unittest.TestCase):
         self.assertEqual(len(results), 20)
         self.assertEqual(get.call_count, 20)
 
+    def test_catalog_ptbr_title_and_synopsis_are_fetched_together(self):
+        titles = [{"id": "tt0111161", "type": "movie"}]
+        def localized(identifier, media, timeout=9):
+            return {"title": "Um Sonho de Liberdade",
+                    "plot": "Em 1946, um bancário é preso."}
+        with patch.object(META, "_read_ptbr_details", side_effect=localized) as network:
+            fresh = META.descriptions_for_catalog(
+                titles, now=100000, include_titles=True)
+            cached = META.descriptions_for_catalog(
+                titles, now=100500, include_titles=True)
+        key = "movie:tt0111161"
+        self.assertEqual(fresh[key]["title"], "Um Sonho de Liberdade")
+        self.assertEqual(fresh[key]["plot"], "Em 1946, um bancário é preso.")
+        self.assertEqual(cached, fresh)
+        self.assertEqual(network.call_count, 1)
+        self.assertEqual(META.localized_title("tt0111161", "movie"),
+                         "Um Sonho de Liberdade")
+
+    def test_existing_synopsis_cache_gets_portuguese_title(self):
+        titles = [{"id": "tt0111161", "type": "movie"}]
+        with patch.object(META, "_read_ptbr_description", return_value="Enredo em PT-BR"):
+            META.descriptions_for_catalog(titles, now=100000)
+        with patch.object(META, "_read_ptbr_details",
+                          return_value={"title": "Um Sonho de Liberdade",
+                                        "plot": "Enredo em PT-BR"}) as network:
+            result = META.descriptions_for_catalog(titles, now=100100,
+                                                   include_titles=True)
+        self.assertEqual(result["movie:tt0111161"]["title"], "Um Sonho de Liberdade")
+        self.assertEqual(network.call_count, 1)
+
     def test_source_url_is_ptbr_configured_and_id_checked(self):
         self.assertEqual(
             META.TMDB_STREMIO_BASE,
