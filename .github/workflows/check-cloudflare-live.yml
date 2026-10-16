@@ -25,25 +25,47 @@ jobs:
           registry = json.load(open("cloudflare/kodi-sources/endpoint.json", encoding="utf-8"))
           base = registry.get("endpoint", "").strip().rstrip("/")
           assert base.startswith("https://") and base.endswith(".workers.dev"), "Worker URL missing"
-          query = urllib.parse.urlencode({
-              "imdb": "tt1254207", "title": "Big Buck Bunny", "year": "2008"
-          })
-          for path in ("/health", "/v1/sources?" + query):
-              request = urllib.request.Request(base + path, headers={
-                  "Accept": "application/json", "User-Agent": "FelipeVideosKodiCheck/1.0"
+          queries = [
+              ("/health", None),
+              ("/v1/providers", None),
+              ("/v1/sources", {"imdb": "tt1254207", "title": "Big Buck Bunny", "year": "2008"}),
+              ("/v1/sources", {"title": "O Auto da Compadecida", "year": "2000"}),
+          ]
+          for index, (route, params) in enumerate(queries):
+              suffix = "?" + urllib.parse.urlencode(params) if params else ""
+              request = urllib.request.Request(base + route + suffix, headers={
+                  "Accept": "application/json", "User-Agent": "FelipeVideosKodiCheck/1.1"
               })
               try:
-                  with urllib.request.urlopen(request, timeout=18) as response:
+                  with urllib.request.urlopen(request, timeout=24) as response:
                       status = response.status
-                      body = response.read(800).decode("utf-8", "replace")
+                      body = response.read(262144).decode("utf-8", "replace")
               except urllib.error.HTTPError as exc:
                   status = exc.code
-                  body = exc.read(800).decode("utf-8", "replace")
-              print(path.split("?")[0], "HTTP", status, "response:", body[:400])
-              if path == "/health":
+                  body = exc.read(1024).decode("utf-8", "replace")
+              except Exception as exc:
+                  print("PROBE", index, route, "NETWORK_ERROR", type(exc).__name__)
+                  if index in (0,2): raise
+                  continue
+              print("PROBE", index, route, "HTTP", status)
+              try: payload = json.loads(body)
+              except ValueError: payload = {}
+              print("KEYS", sorted(payload.keys()) if isinstance(payload, dict) else "not_object")
+              if isinstance(payload, dict):
+                  if isinstance(payload.get("providers"), list):
+                      print("DECLARED_PROVIDERS", index, payload["providers"][:30])
+                  sources = payload.get("sources", [])
+                  if isinstance(sources, list):
+                      print("SOURCE_COUNT", index, len(sources))
+                      # Do not log individual torrent URLs, titles, magnets, or tokens.
+                      print("SOURCE_NAMES", index,
+                            sorted({str(entry.get("source", ""))[:60] for entry in sources
+                                    if isinstance(entry, dict)})[:30])
+                  if "error" in payload: print("ERROR", index, str(payload["error"])[:80])
+              if index == 0:
                   assert status == 200, "Health check failed"
-              else:
+              elif index == 2:
                   assert status in (200, 502), (
-                      "Worker still requires a token, is misconfigured or unreachable"
+                      "Worker requires token, is misconfigured or unavailable"
                   )
           PY
