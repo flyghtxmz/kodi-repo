@@ -105,6 +105,10 @@ def show_recent_detail(identifier, media):
             add_item("Reproduzir automaticamente (PT-BR)", "recent_play", playable=True,
                      artwork=art, info=info, identifier=identifier)
         if media == "movie":
+            if ADDON.getSetting("cloudflare_endpoint").strip():
+                add_item("Fontes abertas via Cloudflare", "cloudflare_sources",
+                         folder=True, artwork=art, info=info, identifier=identifier,
+                         title=movie["title"], year=str(movie.get("year") or "")[:4])
             add_item("Pesquisar no Elementum (sem Prowlarr)", "recent_elementum",
                      artwork=art, info=info, identifier=identifier)
         if movie["trailer_id"]:
@@ -117,6 +121,52 @@ def show_recent_detail(identifier, media):
     except Exception as exc:
         xbmcgui.Dialog().ok("Detalhes indisponíveis", str(exc)[:200])
     finish()
+
+
+def show_cloudflare_sources(title, year="", imdb=""):
+    """Mostra somente URLs verificadas devolvidas pelo Worker configurado."""
+    from cloudflare_client import list_sources
+    xbmcplugin.setContent(HANDLE, "files")
+    try:
+        sources = list_sources(title, year=year, imdb=imdb)
+        for source in sources:
+            size = source["size"]
+            size_text = "{:.1f} GB".format(size / 1073741824) if size else "? GB"
+            seeds = source["seeders"]
+            seeds_text = str(seeds) if seeds is not None else "desconhecido"
+            label = "{} | {} | {} | seeds: {} | áudio: não verificado".format(
+                source["title"], source["quality"], size_text, seeds_text)
+            add_item(label, "cloudflare_play",
+                     info={"title": source["title"],
+                           "plot": "Fonte: {}. Licença aberta verificada; áudio não confirmado.".format(
+                               source["source"])},
+                     url=source["url"])
+        if not sources:
+            xbmcgui.Dialog().ok(
+                "Fontes Cloudflare",
+                "Nenhuma fonte de licença aberta encontrada para este filme. "
+                "O catálogo de lançamentos não garante torrents disponíveis.")
+    except Exception as error:
+        xbmc.log("Felipe Vídeos: API Cloudflare indisponível ({})".format(
+            type(error).__name__), xbmc.LOGERROR)
+        xbmcgui.Dialog().ok(
+            "Cloudflare",
+            "Não foi possível consultar o endpoint. Confira URL HTTPS e token "
+            "nas configurações do Felipe Vídeos.")
+    finish()
+
+
+def play_cloudflare_source(url):
+    """Reprodução é delegada ao Elementum, sem precisar de provedores nele."""
+    from cloudflare_client import is_supported_source
+    finish()
+    if not is_supported_source(url):
+        xbmcgui.Dialog().ok("Fonte inválida", "URL não reconhecida como torrent do acervo.")
+        return
+    if elementum_addon() is None:
+        missing_elementum()
+        return
+    xbmc.executebuiltin("PlayMedia({})".format(build_elementum_url(url)))
 
 
 def open_recent_in_elementum(identifier):
@@ -268,6 +318,9 @@ def show_catalog_options(identifier):
              artwork=art, info=info, identifier=identifier)
     add_item("Assistir via torrent autorizado (Elementum)", "catalog_open_torrent",
              artwork=art, info=info, identifier=identifier)
+    if ADDON.getSetting("cloudflare_endpoint").strip():
+        add_item("Fontes abertas via Cloudflare", "cloudflare_sources", folder=True,
+                 artwork=art, info=info, title=movie["title"], year=movie["year"])
     finish()
 
 
@@ -408,7 +461,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.3.2",
+        "Felipe Vídeos 1.3.3",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -434,6 +487,12 @@ def main():
         play_recent_auto(params.get("identifier", [""])[0])
     elif action == "recent_elementum":
         open_recent_in_elementum(params.get("identifier", [""])[0])
+    elif action == "cloudflare_sources":
+        show_cloudflare_sources(params.get("title", [""])[0],
+                                params.get("year", [""])[0],
+                                params.get("identifier", [""])[0])
+    elif action == "cloudflare_play":
+        play_cloudflare_source(params.get("url", [""])[0])
     elif action in ("recent_info", "recent_where", "recent_trailer"):
         show_recent_action(action, params.get("identifier", [""])[0],
                            params.get("media", ["movie"])[0])
