@@ -1,0 +1,20 @@
+name: Verify Kodi repository
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build packages
+        run: python tools/build_repo.py
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+      - name: Ensure generated files are current
+        run: git diff --exit-code -- addons.xml addons.xml.md5 index.html 'repository.flyghtxmz*' 'plugin.video.flyghtxmz/'

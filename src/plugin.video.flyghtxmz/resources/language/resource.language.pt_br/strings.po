@@ -1,0 +1,13 @@
+# Kodi add-on strings
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: pt_BR\n"
+
+msgctxt "#32000"
+msgid "General"
+msgstr "Geral"
+
+msgctxt "#32001"
+msgid "Custom video URL"
+msgstr "URL do meu vídeo (HTTP ou HTTPS)"
