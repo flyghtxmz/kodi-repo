@@ -1,0 +1,36 @@
+name: Find licensed open film editions
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/find-open-films.yml"]
+  workflow_dispatch:
+jobs:
+  movies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Search official Internet Archive media metadata for known Blender open movies
+        run: |
+          python - <<'PY'
+          import sys
+          from urllib.parse import urlencode
+          sys.path.insert(0,"src/plugin.video.flyghtxmz")
+          import catalog
+          for name in ("Big Buck Bunny","Sintel","Tears of Steel","Elephants Dream","Cosmos Laundromat"):
+              args=[("q","mediatype:movies AND title:(%s) AND licenseurl:http*creativecommons.org*" % name),("fl[]","identifier"),("fl[]","title"),("fl[]","licenseurl"),("fl[]","creator"),("rows", "12"),("output","json")]
+              try:
+                  data=catalog.fetch_json(catalog.SEARCH_URL+"?"+urlencode(args))
+                  docs=(data.get("response") or {}).get("docs",[])
+                  print("TITLE",name,"RESULTS",len(docs))
+                  for doc in docs[:8]:
+                      identifier=doc.get("identifier")
+                      try:
+                          result=catalog.playback(identifier)
+                          print("CANDIDATE_OK",identifier,str(doc.get("title"))[:80],"URL",result["url"][:170])
+                      except Exception as e:
+                          print("CANDIDATE_BAD",identifier,str(e)[:100])
+              except Exception as e:
+                  print("SEARCH_FAILED",name,str(e)[:200])
+          PY
