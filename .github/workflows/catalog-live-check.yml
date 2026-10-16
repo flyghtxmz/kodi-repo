@@ -1,0 +1,40 @@
+name: Smoke test public catalog
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/catalog-live-check.yml"]
+  workflow_dispatch:
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify automatic Archive.org catalog and playback URL
+        run: |
+          python - <<'PY'
+          import sys
+          import urllib.request
+          sys.path.insert(0, "src/plugin.video.flyghtxmz")
+          import catalog
+          results, more = catalog.search("destaques")
+          print("CATALOG_COUNT", len(results), "MORE", more)
+          print("CATALOG_FIRST", [{k: item.get(k) for k in ("identifier", "title", "license")} for item in results[:4]])
+          assert len(results) > 0, "Catálogo sem títulos"
+          playback_found = False
+          for item in results[:5]:
+              try:
+                  movie = catalog.playback(item["identifier"])
+                  print("PLAYBACK_OK", movie["title"], movie["url"][:150])
+                  assert movie["url"].startswith("https://archive.org/download/")
+                  playback_found = True
+                  break
+              except Exception as error:
+                  print("NOT_PLAYABLE", item["identifier"], type(error).__name__, str(error)[:120])
+          assert playback_found, "Nenhum dos primeiros filmes possui vídeo compatível"
+          print("CATALOG_LIVE_OK")
+          PY
