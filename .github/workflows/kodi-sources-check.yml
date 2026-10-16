@@ -16,5 +16,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Test Worker with simulated Internet Archive
-        run: node --test cloudflare/kodi-sources/test/worker.test.mjs
+      - name: Test Worker and Torrentio metadata adapter (mocked upstream)
+        run: node --test cloudflare/kodi-sources/test/*.test.mjs
