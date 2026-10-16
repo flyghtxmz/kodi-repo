@@ -1,7 +1,7 @@
-"""Consulta o catálogo público Cinemeta para lançamentos e séries atuais.
+"""Catálogo TMDb localizado para português do Brasil, com nota IMDb Cinemeta.
 
-Metadados NÃO são links de reprodução comercial. Para exibição de obras atuais,
-mostra os trailers oficiais (se disponíveis) e o buscador de serviços autorizados.
+Os metadados não garantem disponibilidade de fontes/reprodução. A listagem é
+localizada; a nota IMDb é obtida separadamente do Cinemeta e cacheada por 24h.
 """
 from datetime import date
 import json
@@ -10,98 +10,67 @@ import unicodedata
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
-BASE = "https://v3-cinemeta.strem.io"
+BASE = ("https://tmdb.elfhosted.com/"
+        "N4IgNghgdg5grhGBTEAuEAHALgWgEIBKIAvkA")
+IMDB_BASE = "https://v3-cinemeta.strem.io"
+TMDB_ID = re.compile(r"^tmdb:[0-9]{1,12}$")
 IMDB_ID = re.compile(r"^tt[0-9]{5,12}$")
 YOUTUBE_ID = re.compile(r"^[a-zA-Z0-9_-]{11}$")
 MAX_SIZE = 2_000_000
 PAGES = 100
 PER_PAGE = 20
 CATEGORIES = (
-    ("movies_new", "Lançamentos de {year}"),
+    ("movies_new", "Filmes de {year}"),
     ("movies_prev", "Filmes de {prev_year}"),
-    ("movies_popular", "Filmes em alta"),
-    ("movies_best_rated", "Mais bem avaliados no IMDb"),
+    ("movies_popular", "Filmes populares"),
+    ("movies_trending", "Filmes em tendência"),
+    ("movies_latest", "Últimos lançamentos"),
     ("movies_action", "Ação"),
     ("movies_adventure", "Aventura"),
-    ("movies_animation", "Animação"),
     ("movies_comedy", "Comédia"),
-    ("movies_crime", "Crime"),
-    ("movies_documentary", "Documentários"),
-    ("movies_drama", "Drama"),
-    ("movies_family", "Família"),
-    ("movies_fantasy", "Fantasia"),
     ("movies_horror", "Terror"),
-    ("movies_mystery", "Mistério"),
-    ("movies_romance", "Romance"),
-    ("movies_scifi", "Ficção científica"),
     ("movies_thriller", "Suspense"),
+    ("movies_drama", "Drama"),
+    ("movies_scifi", "Ficção científica"),
+    ("movies_animation", "Animação"),
+    ("movies_romance", "Romance"),
+    ("movies_documentary", "Documentários"),
+    ("movies_family", "Família"),
     ("series_new", "Séries de {year}"),
-    ("series_prev", "Séries de {prev_year}"),
-    ("series_popular", "Séries em alta"),
-    ("series_best_rated", "Mais bem avaliadas no IMDb"),
-    ("series_action", "Ação"),
-    ("series_adventure", "Aventura"),
-    ("series_animation", "Animação"),
+    ("series_popular", "Séries populares"),
+    ("series_trending", "Séries em tendência"),
+    ("series_latest", "Séries recentes"),
+    ("series_action", "Ação e aventura"),
     ("series_comedy", "Comédia"),
-    ("series_crime", "Crime"),
-    ("series_documentary", "Documentários"),
+    ("series_crime", "Policial e crime"),
     ("series_drama", "Drama"),
-    ("series_fantasy", "Fantasia"),
+    ("series_scifi", "Ficção científica e fantasia"),
     ("series_mystery", "Mistério"),
-    ("series_scifi", "Ficção científica"),
-    ("series_thriller", "Suspense"),
-    ("series_reality", "Reality shows"),
+    ("series_documentary", "Documentários"),
+    ("series_animation", "Animação"),
+    ("series_family", "Família"),
 )
-GENRE_CODES = {
-    "action":"Action","adventure":"Adventure","animation":"Animation",
-    "comedy":"Comedy","crime":"Crime","documentary":"Documentary",
-    "drama":"Drama","family":"Family","fantasy":"Fantasy",
-    "horror":"Horror","mystery":"Mystery","romance":"Romance",
-    "scifi":"Sci-Fi","thriller":"Thriller","reality":"Reality-TV",
+MOVIE_GENRES = {
+    "action": "Ação", "adventure": "Aventura", "comedy": "Comédia",
+    "horror": "Terror", "thriller": "Thriller", "drama": "Drama",
+    "scifi": "Ficção científica", "animation": "Animação",
+    "romance": "Romance", "documentary": "Documentário", "family": "Família",
 }
-
-# Gêneros confirmados pelo manifesto oficial Cinemeta; a URL usa os
-# identificadores originais do provedor, mas a interface fica em PT-BR.
-GENRES = (
-    ("action", "Ação", "Action"),
-    ("adventure", "Aventura", "Adventure"),
-    ("animation", "Animação", "Animation"),
-    ("comedy", "Comédia", "Comedy"),
-    ("crime", "Crime", "Crime"),
-    ("documentary", "Documentários", "Documentary"),
-    ("drama", "Drama", "Drama"),
-    ("family", "Família", "Family"),
-    ("fantasy", "Fantasia", "Fantasy"),
-    ("scifi", "Ficção científica", "Sci-Fi"),
-    ("horror", "Terror", "Horror"),
-    ("mystery", "Mistério", "Mystery"),
-    ("romance", "Romance", "Romance"),
-    ("thriller", "Suspense", "Thriller"),
-    ("history", "História", "History"),
-    ("sport", "Esportes", "Sport"),
-    ("war", "Guerra", "War"),
-)
-GENRE_CATEGORIES = tuple(
-    (media + "_genre_" + slug, label)
-    for media in ("movies", "series")
-    for slug, label, _ in GENRES
-) + (
-    ("series_genre_reality", "Reality shows"),
-    ("series_genre_talk", "Talk shows"),
-    ("series_genre_game", "Programas de competição"),
-)
-GENRE_LOOKUP = {slug: genre for slug, _, genre in GENRES}
-GENRE_LOOKUP.update({"reality": "Reality-TV", "talk": "Talk-Show",
-                     "game": "Game-Show"})
-
+SERIES_GENRES = {
+    "action": "Action & Adventure", "comedy": "Comédia",
+    "crime": "Crime", "drama": "Drama", "scifi": "Sci-Fi & Fantasy",
+    "mystery": "Mistério", "documentary": "Documentário",
+    "animation": "Animação", "family": "Família",
+}
 
 
 def fetch(url):
     parts = urlsplit(url)
-    if parts.scheme != "https" or parts.hostname != "v3-cinemeta.strem.io":
+    allowed = {"tmdb.elfhosted.com", "v3-cinemeta.strem.io"}
+    if parts.scheme != "https" or parts.hostname not in allowed:
         raise ValueError("Origem de catálogo não permitida.")
     request = Request(url, headers={
-        "User-Agent": "KodiFelipeVideos/1.3 (public movie metadata)",
+        "User-Agent": "KodiFelipeVideos/1.4.0 (pt-br-metadata)",
         "Accept": "application/json",
     })
     with urlopen(request, timeout=12) as response:
@@ -118,13 +87,14 @@ def safe_title(value, limit=150):
 
 
 def validate_id(identifier):
-    if not isinstance(identifier, str) or not IMDB_ID.fullmatch(identifier):
+    if not isinstance(identifier, str) or not (IMDB_ID.fullmatch(identifier) or TMDB_ID.fullmatch(identifier)):
         raise ValueError("ID de título inválido.")
     return identifier
 
 
 def _url(media, catalog, extra=""):
-    if media not in ("movie", "series") or catalog not in ("top", "year", "imdbRating"):
+    available = ("tmdb.top", "tmdb.year", "tmdb.trending", "tmdb.latest", "tmdb.search")
+    if media not in ("movie", "series") or catalog not in available:
         raise ValueError("Parâmetros de catálogo inválidos.")
     addition = "/" + quote(extra, safe="=&%") if extra else ""
     return BASE + "/catalog/{}/{}{}.json".format(media, catalog, addition)
@@ -133,32 +103,36 @@ def _url(media, catalog, extra=""):
 def _parts(category, year=None, query=None):
     year = year or date.today().year
     if category in ("search_movie", "search_series"):
-        if not query or not isinstance(query, str) or not query.strip():
+        if not isinstance(query, str) or not query.strip():
             raise ValueError("Digite um título.")
-        media = "movie" if category == "search_movie" else "series"
-        return media, "top", "search=" + quote(query.strip()[:80], safe="")
-    if category not in {name for name, _ in CATEGORIES}:
+        return ("movie" if category == "search_movie" else "series"), "tmdb.search", (
+            "search=" + quote(query.strip()[:80], safe=""))
+    if category.startswith("movies_"):
+        media, action, genres = "movie", category[7:], MOVIE_GENRES
+    elif category.startswith("series_"):
+        media, action, genres = "series", category[7:], SERIES_GENRES
+    else:
         raise ValueError("Categoria desconhecida.")
-    media = "movie" if category.startswith("movies_") else "series"
-    suffix = category.split("_", 1)[1]
-    if suffix == "new":
-        return media, "year", "genre={}".format(year)
-    if suffix == "prev":
-        return media, "year", "genre={}".format(year - 1)
-    if suffix == "popular":
-        return media, "top", ""
-    if suffix == "best_rated":
-        return media, "imdbRating", ""
-    if suffix in GENRE_CODES:
-        return media, "top", "genre=" + quote(GENRE_CODES[suffix], safe="")
+    if action == "new":
+        return media, "tmdb.year", "genre={}".format(year)
+    if action == "prev" and media == "movie":
+        return media, "tmdb.year", "genre={}".format(year - 1)
+    if action == "popular":
+        return media, "tmdb.top", ""
+    if action == "trending":
+        return media, "tmdb.trending", "genre=Week"
+    if action == "latest":
+        return media, "tmdb.latest", ""
+    if action in genres:
+        return media, "tmdb.top", "genre=" + quote(genres[action], safe="")
     raise ValueError("Categoria desconhecida.")
 
 
 def normalize(entry, kind=None):
     if not isinstance(entry, dict):
         return None
-    ident = entry.get("imdb_id") or entry.get("id")
-    if not isinstance(ident, str) or not IMDB_ID.fullmatch(ident):
+    ident = entry.get("id") or entry.get("imdb_id")
+    if not isinstance(ident, str) or not (IMDB_ID.fullmatch(ident) or TMDB_ID.fullmatch(ident)):
         return None
     typ = entry.get("type") or kind or "movie"
     if typ not in ("movie", "series"):
@@ -171,10 +145,15 @@ def normalize(entry, kind=None):
         return None
     year = str(entry.get("year") or entry.get("releaseInfo") or "")[:12]
     plot = safe_title(entry.get("description"), 650)
-    rating = safe_title(str(entry.get("imdbRating") or ""), 8)
+    # Nunca classificar a nota da plataforma TMDb como sendo uma nota IMDb.
+    # A nota IMDb é consultada do Cinemeta em detail(), quando disponível.
+    imdb_id = entry.get("imdb_id") or ""
+    if not isinstance(imdb_id, str) or not IMDB_ID.fullmatch(imdb_id):
+        imdb_id = ""
     return {
         "id": ident, "type": typ, "title": title,
-        "year": year, "plot": plot, "poster": poster, "rating": rating,
+        "year": year, "plot": plot, "poster": poster,
+        "imdb_id": imdb_id, "rating": "",
     }
 
 
@@ -211,6 +190,8 @@ def detail(identifier, media="movie"):
     value = normalize(meta, media)
     if not value:
         raise ValueError("Detalhes indisponíveis.")
+    imdb_id = value.get("imdb_id") or (identifier if IMDB_ID.fullmatch(identifier) else "")
+    value["imdb_id"] = imdb_id
     sources = meta.get("trailerStreams") or meta.get("trailers") or []
     trailer_id = ""
     for trailer in sources:
@@ -221,29 +202,34 @@ def detail(identifier, media="movie"):
             trailer_id = candidate
             break
     value["trailer_id"] = trailer_id
-    value["original_title"] = value["title"]
-    # Sempre apresenta sinopse PT-BR; em indisponibilidade, texto de fallback
-    # em português, não a descrição original em inglês do Cinemeta.
-    try:
-        from metadata_ptbr import enrich
-        synopsis, rating, checked_at = enrich(
-            identifier, media, imdb_rating=value.get("rating"))
-        value["plot"] = synopsis
-        value["rating"] = rating
-        value["rating_checked_at"] = checked_at
-        from metadata_ptbr import localized_title
-        translated = localized_title(identifier, media)
-        if translated:
-            value["original_title"] = value["title"]
-            value["title"] = translated
+    # A sinopse e o título já chegam traduzidos da API TMDb configurada PT-BR.
+    # O campo "imdbRating" do TMDb NÃO substitui a fonte IMDb/Cinemeta.
+    if imdb_id:
         try:
-            from metadata_ptbr import localized_title
-            value["title"] = localized_title(identifier, media) or value["title"]
+            from metadata_ptbr import enrich, cached_rating
+            current = cached_rating(imdb_id, media)
+            rating = ""
+            if not current:
+                try:
+                    cinemeta = fetch(
+                        IMDB_BASE + "/meta/{}/{}.json".format(media, imdb_id))
+                    rating = str((cinemeta.get("meta") or {}).get("imdbRating") or "")
+                except (OSError, TimeoutError, ValueError, TypeError):
+                    pass
+            synopsis, rating, checked = enrich(
+                imdb_id, media, imdb_rating=rating,
+                ptbr_description=value.get("plot") or "")
+            value["plot"] = synopsis
+            value["rating"] = rating
+            value["rating_checked_at"] = checked
         except (ImportError, OSError, ValueError, TypeError):
-            pass
-    except (ImportError, OSError, ValueError, TypeError) as error:
-        value["plot"] = "Sinopse em português (Brasil) ainda não disponível."
+            value["rating"] = "Indisponível"
+            value["rating_checked_at"] = None
+    else:
+        value["rating"] = "Indisponível"
         value["rating_checked_at"] = None
+    if not value.get("plot"):
+        value["plot"] = "Sinopse em português (Brasil) ainda não disponível."
     return value
 
 
