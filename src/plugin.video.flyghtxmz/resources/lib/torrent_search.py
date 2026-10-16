@@ -97,6 +97,14 @@ def search_torrents(imdb_id, title, year, language_tag="portugues"):
         data = _request_json(base, "/api/v1/search", key, params=params)
         if isinstance(data, dict):
             data = data.get("releases") or data.get("results") or []
+        if not data and isinstance(imdb_id, str) and IMDB_RE.fullmatch(imdb_id):
+            retry = [("type", "movie"), ("limit", "100"),
+                     ("query", search_term[:200])]
+            if ids is not None:
+                retry.extend(("indexerIds", item) for item in ids)
+            data = _request_json(base, "/api/v1/search", key, params=retry)
+            if isinstance(data, dict):
+                data = data.get("releases") or data.get("results") or []
         if not isinstance(data, list):
             return []
         items = []
@@ -106,7 +114,11 @@ def search_torrents(imdb_id, title, year, language_tag="portugues"):
             name = str(row.get("title") or "")
             uri = row.get("magnetUrl") or row.get("magnet") or ""
             if not isinstance(uri, str) or not uri.startswith("magnet:?"):
-                continue
+                hash_value = str(row.get("infoHash") or row.get("infohash") or "")
+                if re.fullmatch(r"[A-Fa-f0-9]{40}", hash_value):
+                    uri = "magnet:?xt=urn:btih:" + hash_value
+                else:
+                    continue
             items.append({
                 "title": name[:300],
                 "magnet": uri,
