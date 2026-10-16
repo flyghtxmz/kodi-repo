@@ -6,7 +6,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.3.6
+## Felipe Vídeos 1.3.7
 
 **Tela principal**
 
@@ -31,7 +31,7 @@ Cloudflare, cuja URL é lida automaticamente de
 endereço ou token na TV Box.
 
 O addon bloqueia o provedor Internet Archive, mesmo que o Worker publicado
-ainda o retorne. A interface aceita torrents HTTPS e magnet links válidos;
+ainda o retorne. A interface aceita torrents HTTPS e magnet links válidos, remove duplicatas pelo infohash mesmo quando os provedores divergem;
 reprodução é delegada ao Elementum, sem buscar provedores dentro dele.
 Áudio PT-BR na lista é **declarado pela fonte**, não verificado.
 
@@ -59,3 +59,16 @@ O repositório Kodi permanece na versão 1.0.3.
 Para a reprodução de torrents, instale Elementum separadamente. BitTorrent
 pode expor o seu IP aos peers e transmitir dados a outros usuários. Utilize
 somente arquivos cuja distribuição e reprodução são autorizadas.
+
+## Integração Torrentio — preparação
+
+Adaptador opcional em `cloudflare/kodi-sources/src/torrentio.mjs`, com
+validação de IMDb ID, timeout de 8 segundos, limite de resposta e deduplicação
+por hash. Métricas brutas e únicas ficam em `providerStats.torrentio`.
+O Worker publicado manualmente na Cloudflare **não foi modificado**.
+Sincronize o código customizado antes de habilitar o adaptador; veja
+[as instruções específicas](cloudflare/kodi-sources/README.md).
+
+O Kodi 1.3.7 faz uma segunda deduplicação por hash e prioriza PT-BR declarado,
+sem inferir áudio pelo nome do indexador. O Elementum pode exigir a escolha
+manual do arquivo de vídeo no caso de torrents com múltiplos arquivos.
