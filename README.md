@@ -6,7 +6,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.3.9
+## Felipe Vídeos 1.4.0
 
 **Tela principal**
 
@@ -44,6 +44,29 @@ entrada manual de magnet/.torrent.
 O Worker real pode conter modificações feitas diretamente na Cloudflare.
 Não faça redeploy deste template sem sincronizar previamente os indexadores
 customizados, pois ele substituiria a API atual.
+
+## Títulos em português e mais categorias (1.4.0)
+
+- A listagem mantém identificadores IMDb do Cinemeta para não perder
+  compatibilidade com Cloudflare, Torrentio e Elementum. Nome e sinopse
+  são enriquecidos com o serviço TMDb configurado para `pt-BR`.
+- No primeiro acesso aos títulos novos, as traduções são consultadas em paralelo
+  e armazenadas no Kodi por sete dias. Quando não houver tradução, mantém-se
+  o título de origem, sem inventar um nome em português.
+- Filmes: lançamentos do ano, ano anterior, em alta e mais bem avaliados,
+  além do submenu **Gêneros**: ação, aventura, animação, comédia, crime,
+  documentários, drama, família, fantasia, terror, mistério, romance,
+  ficção científica e suspense.
+- Séries: recentes, em alta e mais bem avaliadas, além de **Gêneros**:
+  ação, aventura, animação, comédia, crime, documentários, drama, fantasia,
+  mistério, ficção científica, suspense e reality shows.
+- Dentro do catálogo, a sinopse aparece na área de informações da capa,
+  não no popup; o popup mantém a seleção de fontes, o trailer e onde assistir.
+- A classificação alfabética A–Z considera o título exibido em PT-BR, a cada
+  página (20 itens). O serviço externo continua definindo quais títulos entram
+  em cada página e em cada gênero.
+- A nota **IMDb** continua sendo obtida do Cinemeta e mantida em cache por
+  24h por título, sem ser substituída pela nota do TMDb.
 
 ## Desenvolvimento e testes
 
