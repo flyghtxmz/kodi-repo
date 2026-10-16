@@ -24,6 +24,8 @@ ALL_CATEGORIES = (
     ("series_popular", "Séries em alta"),
     ("series_best_rated", "Mais bem avaliadas no IMDb"),
 )
+CATEGORIES = ALL_CATEGORIES
+
 GENRE_CATEGORIES = (
     ("movies_genre_action", "Ação"),
     ("movies_genre_adventure", "Aventura"),
