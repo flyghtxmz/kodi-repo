@@ -54,7 +54,7 @@ def validate_id(identifier):
 def _url(media, catalog, extra=""):
     if media not in ("movie", "series") or catalog not in ("top", "year"):
         raise ValueError("Parâmetros de catálogo inválidos.")
-    addition = "/" + quote(extra, safe="=&") if extra else ""
+    addition = "/" + quote(extra, safe="=&%") if extra else ""
     return BASE + "/catalog/{}/{}{}.json".format(media, catalog, addition)
 
 
