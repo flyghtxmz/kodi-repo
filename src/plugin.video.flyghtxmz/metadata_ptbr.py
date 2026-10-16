@@ -136,7 +136,7 @@ def localized_title(identifier, media):
     return title if isinstance(title, str) else ""
 
 
-def enrich(identifier, media, imdb_rating="", now=None):
+def enrich(identifier, media, imdb_rating="", now=None, ptbr_description=""):
     """Retorna (sinopse_ptbr, nota_imdb, verificado_em).
 
     Quando nota ainda não tem 24h, mantém o valor em cache. Após expiração,
@@ -166,7 +166,15 @@ def enrich(identifier, media, imdb_rating="", now=None):
     description = entry.get("description") or ""
     last_synopsis = float(entry.get("description_checked_at") or 0)
     last_attempt = float(entry.get("description_attempt_at") or 0)
-    if (not description or current - last_synopsis >= DESCRIPTION_TTL) and (
+    if isinstance(ptbr_description, str) and ptbr_description.strip():
+        # A ficha TMDb PT-BR já inclui a sinopse; reutilizar evita segunda rede.
+        localized = " ".join(ptbr_description.split())[:1600]
+        if not description or current - last_synopsis >= DESCRIPTION_TTL:
+            description = localized
+            entry["description"] = localized
+            entry["description_checked_at"] = current
+            changed = True
+    elif (not description or current - last_synopsis >= DESCRIPTION_TTL) and (
             last_attempt <= 0 or current - last_attempt >= RETRY_TTL or last_attempt > current):
         entry["description_attempt_at"] = current
         changed = True
