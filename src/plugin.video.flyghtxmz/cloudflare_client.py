@@ -1,11 +1,11 @@
 """Cliente da API Cloudflare Sources para o Felipe Vídeos.
 
-Somente endpoints HTTPS configurados pelo usuário; o token não vai para URLs
-nem para logs. Neste estágio, a API aceita apenas fontes autorizadas do
-Internet Archive e não afirma que o áudio de terceiros seja PT-BR.
+Aceita provedores definidos na API do usuário, sem exigir token local.
+Bloqueia o provedor removido, além de links malformados e endereços locais.
 """
 import re
-from urllib.parse import urlsplit
+import ipaddress
+from urllib.parse import parse_qs, urlsplit
 import json
 
 import requests
@@ -46,20 +46,39 @@ def configured_endpoint():
     return _worker_url(payload["endpoint"])
 
 
+def _is_removed_provider(item):
+    name = str(item.get("source") or item.get("provider") or "").strip().lower()
+    return name in ("internet archive", "internetarchive", "archive.org", "archive")
+
+
 def is_supported_source(url):
-    if not isinstance(url, str) or len(url) > 4000:
+    """Aceita magnet válido ou HTTPS .torrent; bloqueia fontes removidas e hosts locais."""
+    if not isinstance(url, str) or len(url) > 8192 or any(ord(c) < 32 or ord(c) == 127 for c in url):
         return False
     try:
         parsed = urlsplit(url)
-        return (
-            parsed.scheme == "https" and parsed.hostname in
-            ("archive.org", "www.archive.org") and
-            parsed.path.startswith("/download/") and
-            parsed.path.lower().endswith("_archive.torrent") and
-            not parsed.username and not parsed.password and
-            not parsed.query and not parsed.fragment
-        )
-    except ValueError:
+        if parsed.scheme.lower() == "magnet":
+            if parsed.netloc or parsed.path or not parsed.query:
+                return False
+            xts = parse_qs(parsed.query).get("xt", [])
+            return any(re.fullmatch(
+                r"urn:btih:(?:[a-fA-F0-9]{40}|[a-zA-Z2-7]{32})", xt or "", re.I
+            ) for xt in xts)
+        if (parsed.scheme != "https" or not parsed.hostname or
+                parsed.username or parsed.password or parsed.port not in (None, 443) or
+                not parsed.path.lower().endswith(".torrent")):
+            return False
+        host = parsed.hostname.lower().rstrip(".")
+        if (host in ("archive.org", "www.archive.org", "localhost") or
+                host.endswith((".local", ".localhost", ".internal", ".lan"))):
+            return False
+        try:
+            if not ipaddress.ip_address(host).is_global:
+                return False
+        except ValueError:
+            pass
+        return True
+    except (ValueError, TypeError):
         return False
 
 
@@ -101,12 +120,14 @@ def list_sources(title, year="", imdb=""):
         raise ValueError("O Worker retornou um formato inesperado.")
 
     result = []
-    for item in payload["sources"][:40]:
-        if not isinstance(item, dict) or item.get("verified_license") is not True:
+    seen = set()
+    for item in payload["sources"][:80]:
+        if not isinstance(item, dict) or _is_removed_provider(item):
             continue
-        uri = item.get("url")
-        if not is_supported_source(uri):
+        uri = item.get("url") or item.get("magnet") or item.get("torrent")
+        if not is_supported_source(uri) or uri in seen:
             continue
+        seen.add(uri)
         label = str(item.get("title") or title)[:180]
         q = str(item.get("quality") or "SD")
         if q not in RANKS:
@@ -121,11 +142,17 @@ def list_sources(title, year="", imdb=""):
             seeds = None
         result.append({
             "title": label,
-            "source": str(item.get("source") or "Internet Archive")[:80],
+            "source": str(item.get("source") or item.get("provider") or "Fonte externa")[:80],
             "quality": q,
             "size": size,
             "seeders": seeds,
             "language": str(item.get("language") or "unknown")[:30],
             "url": uri,
         })
+    def order(item):
+        language = item["language"].casefold().replace("_", "-")
+        ptbr = language in ("pt-br", "ptbr", "portugues", "português", "brazilian")
+        ranks = {"4K": 4, "1080p": 3, "720p": 2, "480p": 1, "SD": 0}
+        return (ptbr, ranks.get(item["quality"], 0), item["seeders"] or 0)
+    result.sort(key=order, reverse=True)
     return result
