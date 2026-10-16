@@ -17,30 +17,29 @@ SPEC.loader.exec_module(REC)
 class RecentCatalogTests(unittest.TestCase):
     def test_year_section_uses_current_year(self):
         self.assertEqual(REC._parts("movies_new", year=2026),
-                         ("movie", "year", "genre=2026"))
+                         ("movie", "tmdb.year", "genre=2026"))
         self.assertEqual(REC._parts("movies_prev", year=2026),
-                         ("movie", "year", "genre=2025"))
+                         ("movie", "tmdb.year", "genre=2025"))
         self.assertEqual(REC._parts("series_new", year=2026),
-                         ("series", "year", "genre=2026"))
+                         ("series", "tmdb.year", "genre=2026"))
 
-    def test_additional_categories_use_official_cinemeta_genres(self):
-        self.assertEqual(REC._parts("movies_rating"),
-                         ("movie", "imdbRating", ""))
-        self.assertEqual(REC._parts("series_rating"),
-                         ("series", "imdbRating", ""))
-        self.assertEqual(REC._parts("movies_genre_action"),
-                         ("movie", "top", "genre=Action"))
-        self.assertEqual(REC._parts("movies_genre_scifi"),
-                         ("movie", "top", "genre=Sci-Fi"))
-        self.assertEqual(REC._parts("series_genre_reality"),
-                         ("series", "top", "genre=Reality-TV"))
-        self.assertIn("imdbRating", REC._url("series", "imdbRating", ""))
-        self.assertIn("genre=Action", REC._url("movie", "top", "genre=Action"))
+    def test_portuguese_categories_use_tmdb_catalog_ids(self):
+        self.assertEqual(REC._parts("movies_popular"),
+                         ("movie", "tmdb.top", ""))
+        self.assertEqual(REC._parts("movies_trending"),
+                         ("movie", "tmdb.trending", "genre=Week"))
+        self.assertEqual(REC._parts("movies_latest"),
+                         ("movie", "tmdb.latest", ""))
+        self.assertEqual(REC._parts("movies_action"),
+                         ("movie", "tmdb.top", "genre=A%C3%A7%C3%A3o"))
+        self.assertEqual(REC._parts("series_crime"),
+                         ("series", "tmdb.top", "genre=Crime"))
+        self.assertEqual(REC._parts("series_scifi"),
+                         ("series", "tmdb.top", "genre=Sci-Fi%20%26%20Fantasy"))
+        self.assertIn("tmdb.top", REC._url("movie", "tmdb.top"))
         with self.assertRaises(ValueError):
-            REC._parts("movies_genre_reality")
-        with self.assertRaises(ValueError):
-            REC._parts("series_genre_nonexistent")
-        self.assertGreaterEqual(len(REC.GENRE_CATEGORIES), 30)
+            REC._parts("series_unknown")
+        self.assertGreaterEqual(len(REC.CATEGORIES), 25)
 
     def test_validates_imdb_id_and_source(self):
         self.assertEqual(REC.validate_id("tt1234567"), "tt1234567")
@@ -106,41 +105,49 @@ class RecentCatalogTests(unittest.TestCase):
             movie = REC.detail("tt1234567", "movie")
         self.assertEqual(movie["trailer_id"], "ZkN2M4ODdys")
 
-    def test_film_and_series_details_show_ptbr_synopsis_and_imdb_rating(self):
+    def test_film_and_series_details_use_ptbr_tmdb_and_daily_imdb_rating(self):
         ptbr = types.ModuleType("metadata_ptbr")
-        ptbr.enrich = lambda identifier, media, imdb_rating="": (
-            "História apresentada em português do Brasil.", "8.7", 100000)
+        ptbr.cached_rating = lambda identifier, media: ""
+        ptbr.enrich = lambda identifier, media, imdb_rating="", ptbr_description="": (
+            ptbr_description, "8.7", 100000)
         for kind in ("movie", "series"):
             with self.subTest(kind=kind):
-                incoming = {"meta": {
-                    "id": "tt1234567", "type": kind, "name": "Film Name",
-                    "description": "Original English description",
-                    "imdbRating": "8.6", "year": 2026}}
+                localized = {"meta": {
+                    "id": "tt1234567", "type": kind,
+                    "name": "Nome em português", "description": "Enredo em português",
+                    "year": 2026, "imdb_id": "tt1234567"}}
+                cinemeta = {"meta": {"imdbRating": "8.6"}}
                 with patch.dict(sys.modules, {"metadata_ptbr": ptbr}):
-                    with patch.object(REC, "fetch", return_value=incoming):
+                    with patch.object(REC, "fetch", side_effect=[localized, cinemeta]) as fetch:
                         result = REC.detail("tt1234567", kind)
-                self.assertEqual(result["plot"],
-                    "História apresentada em português do Brasil.")
+                self.assertEqual(result["title"], "Nome em português")
+                self.assertEqual(result["plot"], "Enredo em português")
                 self.assertEqual(result["rating"], "8.7")
                 self.assertEqual(result["rating_checked_at"], 100000)
-                self.assertNotIn("Original English", result["plot"])
+                self.assertEqual(result["imdb_id"], "tt1234567")
+                self.assertEqual(fetch.call_count, 2)
 
-    def test_no_english_overview_if_ptbr_provider_is_unavailable(self):
+    def test_tmdb_id_without_imdb_mapping_keeps_ptbr_but_no_imdb_rating(self):
         incoming = {"meta": {
-            "id": "tt1234567", "type": "movie", "name": "Film Name",
-            "description": "English summary to avoid", "year": 2026}}
-        ptbr = types.ModuleType("metadata_ptbr")
-        ptbr.enrich = lambda *args, **kwargs: (_ for _ in ()).throw(TimeoutError())
-        with patch.dict(sys.modules, {"metadata_ptbr": ptbr}):
-            with patch.object(REC, "fetch", return_value=incoming):
-                # Network errors are handled in the metadata module; this test
-                # verifies that an import error cannot reveal English text.
-                pass
-        with patch.dict(sys.modules, {"metadata_ptbr": None}):
-            with patch.object(REC, "fetch", return_value=incoming):
-                result = REC.detail("tt1234567", "movie")
+            "id": "tmdb:969681", "type": "movie",
+            "name": "Homem-Aranha: Um Novo Dia",
+            "description": "É um novo dia para Peter Parker.",
+            "year": 2026}}
+        with patch.object(REC, "fetch", return_value=incoming) as fetch:
+            result = REC.detail("tmdb:969681", "movie")
+        self.assertEqual(result["title"], "Homem-Aranha: Um Novo Dia")
+        self.assertIn("Peter Parker", result["plot"])
+        self.assertEqual(result["rating"], "Indisponível")
+        self.assertEqual(result["imdb_id"], "")
+        self.assertEqual(fetch.call_count, 1)
+
+    def test_empty_tmdb_description_uses_ptbr_fallback(self):
+        incoming = {"meta": {
+            "id": "tmdb:969681", "type": "movie",
+            "name": "Nome local", "description": "", "year": 2026}}
+        with patch.object(REC, "fetch", return_value=incoming):
+            result = REC.detail("tmdb:969681", "movie")
         self.assertIn("Sinopse em português", result["plot"])
-        self.assertNotIn("English", result["plot"])
 
     def test_where_to_watch_is_query_not_illegal_stream(self):
         url = REC.justwatch_search_url("Movie Name (2026)")
