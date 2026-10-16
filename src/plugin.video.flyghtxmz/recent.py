@@ -146,6 +146,18 @@ def detail(identifier, media="movie"):
             trailer_id = candidate
             break
     value["trailer_id"] = trailer_id
+    # Sempre apresenta sinopse PT-BR; em indisponibilidade, texto de fallback
+    # em português, não a descrição original em inglês do Cinemeta.
+    try:
+        from metadata_ptbr import enrich
+        synopsis, rating, checked_at = enrich(
+            identifier, media, imdb_rating=value.get("rating"))
+        value["plot"] = synopsis
+        value["rating"] = rating
+        value["rating_checked_at"] = checked_at
+    except (ImportError, OSError, ValueError, TypeError) as error:
+        value["plot"] = "Sinopse em português (Brasil) ainda não disponível."
+        value["rating_checked_at"] = None
     return value
 
 
