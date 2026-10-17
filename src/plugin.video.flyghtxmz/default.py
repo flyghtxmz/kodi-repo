@@ -222,7 +222,8 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None)
         if not sources:
             xbmcgui.Dialog().ok(
                 "Nenhuma fonte disponível",
-                "Cloudflare e Torrentio não retornaram fontes compatíveis para este título.")
+                ("O Torrentio não retornou fontes para este episódio." if season is not None else
+                 "Cloudflare e Torrentio não retornaram fontes compatíveis para este título."))
             return
         labels = []
         for source in sources:
@@ -420,7 +421,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.4.0",
+        "Felipe Vídeos 1.4.2",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "

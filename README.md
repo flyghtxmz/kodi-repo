@@ -1,3 +1,22 @@
+## Séries: temporadas e episódios exatos (1.4.2)
+
+Ao selecionar uma série, o **popup mostra as temporadas cadastradas** e a
+quantidade de episódios por temporada. A escolha de temporada abre outro
+popup com o identificador original de cada episódio, como **S01E01**,
+**S01E03** ou **S02E08** (números reais do Cinemeta, não posição da lista).
+A **temporada 0 (S00)** aparece como *Especiais*, quando existe.
+
+O próximo popup oferece as fontes do episódio selecionado. A busca
+direta no Torrentio utiliza o identificador Stremio
+`ttIMDb:temporada:episódio`, como `tt0944947:2:8`, com cache independente
+por episódio. **O Worker antigo, restrito à busca de filmes, não é
+consultado para episódios** para evitar confundir a série com filmes ou
+fontes de episódios diferentes. Cancelar qualquer popup não reproduz nada.
+
+Os títulos de episódios são os fornecidos pelo Cinemeta e podem não estar
+traduzidos; a numeração é a original da fonte. A disponibilidade de torrent,
+idioma e arquivo correto depende do indexador e do Elementum.
+
 # Felipe Addons — Kodi
 
 Instalação: https://flyghtxmz.github.io/kodi-repo/
@@ -6,7 +25,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.4.1
+## Felipe Vídeos 1.4.2
 
 **Torrentio direto no Kodi:** a busca de fontes de filmes consulta o Worker e o
 Torrentio em paralelo, pela conexão da própria TV Box. Os resultados aparecem
