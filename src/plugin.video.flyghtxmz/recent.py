@@ -167,6 +167,35 @@ def list_titles(category, page=1, search_term="", year=None):
     return results, len(raw_items) >= PER_PAGE and page < PAGES
 
 
+def episodes_for_series(meta, identifier):
+    """Extrai temporadas e episódios respeitando IDs e números oficiais."""
+    validate_id(identifier)
+    videos = meta.get("videos") if isinstance(meta, dict) else None
+    if not isinstance(videos, list):
+        return {}
+    groups = {}
+    for row in videos[:2500]:
+        if not isinstance(row, dict):
+            continue
+        season, episode = row.get("season"), row.get("episode")
+        if (type(season) is not int or type(episode) is not int or
+                not 0 <= season <= 999 or not 1 <= episode <= 9999):
+            continue
+        canonical = "{}:{}:{}".format(identifier, season, episode)
+        if row.get("id") and row["id"] != canonical:
+            continue
+        title = safe_title(row.get("title") or row.get("name"), 140)
+        item = {"season": season, "episode": episode,
+                "id": canonical, "title": title or "Episódio {}".format(episode),
+                "released": str(row.get("released") or "")[:32]}
+        group = groups.setdefault(season, {})
+        prior = group.get(episode)
+        if prior is None or (prior["title"].startswith("Episódio ") and title):
+            group[episode] = item
+    return {season: [group[num] for num in sorted(group)]
+            for season, group in sorted(groups.items())}
+
+
 def detail(identifier, media="movie"):
     identifier = validate_id(identifier)
     if media not in ("movie", "series"):
@@ -187,6 +216,8 @@ def detail(identifier, media="movie"):
             break
     value["trailer_id"] = trailer_id
     value["original_title"] = value["title"]
+    if media == "series":
+        value["episodes"] = episodes_for_series(meta, identifier)
     try:
         from metadata_ptbr import enrich
         synopsis, rating, checked_at = enrich(
