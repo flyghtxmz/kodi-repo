@@ -121,6 +121,45 @@ class RecentCatalogTests(unittest.TestCase):
         self.assertIn("Sinopse em português", movie["plot"])
         self.assertNotIn("English", movie["plot"])
 
+    def test_real_season_episode_numbers_and_specials_are_preserved(self):
+        identity = "tt0944947"
+        rows = [
+            {"id": identity + ":2:8", "season": 2, "episode": 8, "title": "Eight"},
+            {"id": identity + ":1:3", "season": 1, "episode": 3, "title": "Third"},
+            {"id": identity + ":0:1", "season": 0, "episode": 1, "title": "Special"},
+            {"id": identity + ":1:1", "season": 1, "episode": 1, "title": "Pilot"},
+            {"id": identity + ":1:3", "season": 1, "episode": 3, "title": "Third duplicate"},
+            {"id": identity + ":1:8", "season": 1, "episode": 9, "title": "Bad ID"},
+            {"id": "tt1234567:1:2", "season": 1, "episode": 2},
+            {"id": identity + ":3:1", "season": 3, "episode": 0},
+            {"id": identity + ":2:5", "season": True, "episode": 5},
+            {"season": 4, "episode": 2},
+        ]
+        groups = REC.episodes_for_series({"videos": rows}, identity)
+        self.assertEqual(list(groups), [0, 1, 2, 4])
+        self.assertEqual([x["episode"] for x in groups[1]], [1, 3])
+        self.assertEqual([x["episode"] for x in groups[2]], [8])
+        self.assertEqual(groups[0][0]["id"], identity + ":0:1")
+        self.assertEqual(groups[4][0]["id"], identity + ":4:2")
+        self.assertNotIn(3, groups)
+
+    def test_detail_adds_series_episodes_without_renumbering(self):
+        identity = "tt0944947"
+        data = {"meta": {
+            "id": identity, "type": "series", "name": "Game of Thrones",
+            "year": 2011, "videos": [
+                {"id": identity + ":3:7", "season": 3, "episode": 7, "title": "The Bear"},
+                {"id": identity + ":3:5", "season": 3, "episode": 5, "title": "Kissed"},
+            ]}}
+        localized = types.ModuleType("metadata_ptbr")
+        localized.enrich = lambda *args, **kwargs: ("Sinopse PT-BR", "9.2", 1000)
+        localized.localized_title = lambda *args: "A Guerra dos Tronos"
+        with patch.dict(sys.modules, {"metadata_ptbr": localized}):
+            with patch.object(REC, "fetch", return_value=data):
+                result = REC.detail(identity, "series")
+        self.assertEqual([item["episode"] for item in result["episodes"][3]], [5, 7])
+        self.assertEqual(result["episodes"][3][1]["id"], identity + ":3:7")
+
     def test_justwatch_search_uses_title(self):
         url = REC.justwatch_search_url("Um Sonho de Liberdade")
         self.assertEqual(urlsplit(url).hostname, "www.justwatch.com")
