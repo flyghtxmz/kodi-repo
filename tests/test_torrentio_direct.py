@@ -89,6 +89,41 @@ class TorrentioTests(unittest.TestCase):
         self.assertEqual(parsed[0]["infoHash"], "0"*40)
         self.assertEqual(parsed[0]["file_index"], 2)
 
+    def test_magnet_includes_original_public_trackers(self):
+        from urllib.parse import parse_qs, urlsplit
+        result = self.torrentio.parse_streams({"streams": [stream(sources=[
+            "dht:" + HASH,
+            "tracker:udp://tracker.example.org:6969/announce",
+            "tracker:https://tracker2.example.org/announce",
+            "tracker:udp://tracker.example.org:6969/announce",
+            "tracker:http://127.0.0.1:9090/announce",
+            "tracker:ftp://invalid.example/announce",
+        ])]})
+        self.assertEqual(len(result), 1)
+        magnet = result[0]["url"]
+        params = parse_qs(urlsplit(magnet).query)
+        self.assertEqual(params["tr"], [
+            "udp://tracker.example.org:6969/announce",
+            "https://tracker2.example.org/announce",
+        ])
+        self.assertEqual(params["xt"], ["urn:btih:" + HASH])
+        self.assertEqual(result[0]["file_index"], 0)
+
+    def test_no_invented_trackers_when_provider_omits_them(self):
+        from urllib.parse import parse_qs, urlsplit
+        uri = self.torrentio.parse_streams({"streams": [stream()]})[0]["url"]
+        self.assertNotIn("tr", parse_qs(urlsplit(uri).query))
+
+    def test_seeded_ptbr_1080p_outranks_unseeded_ptbr_4k(self):
+        rows = self.torrentio.parse_streams({"streams": [
+            stream(infoHash="b"*40, title="Filme Dublado\n👤 0 💾 12.5 GB", name="Torrentio 4K"),
+            stream(infoHash="c"*40, title="Filme Dublado\n👤 24 💾 1.9 GB", name="Torrentio 1080p"),
+        ]})
+        ranked = self.sources.merge_sources([rows])
+        self.assertEqual(ranked[0]["seeders"], 24)
+        self.assertEqual(ranked[0]["quality"], "1080p")
+        self.assertEqual(ranked[1]["seeders"], 0)
+
     def test_direct_request_uses_imdb_without_worker_or_token(self):
         with patch.object(self.requests, "get", return_value=Response({"streams": [stream()]})) as get:
             result = self.torrentio.list_sources("Filme", year="2008", imdb="tt1254207")
