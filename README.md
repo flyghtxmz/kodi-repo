@@ -34,7 +34,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.4.3
+## Felipe Vídeos 1.4.4
 
 **Torrentio direto no Kodi:** a busca de fontes de filmes consulta o Worker e o
 Torrentio em paralelo, pela conexão da própria TV Box. Os resultados aparecem
@@ -162,3 +162,25 @@ pelo Torrentio é preservada até o Elementum. O Worker não precisa consultar o
   em português, e novas tentativas são feitas no máximo uma vez por dia.
 - Nenhuma chave TMDb é exigida nas configurações do Kodi, e o Worker de
   produção da Cloudflare não foi modificado.
+
+## Versão 1.4.4 — inicialização de fontes no Elementum
+
+- **Torrentio:** trackers públicos informados na resposta são incluídos no magnet
+  (`tr=`), evitando depender exclusivamente de DHT para descobrir peers.
+  Não são adicionados trackers inventados e endereços locais são descartados.
+- **Seleção:** mantém prioridade de áudio PT-BR, mas dentro do mesmo idioma
+  mostra primeiro as fontes com seeders positivos e conhecidos, antes de usar
+  a resolução como desempate. Seeders são apenas números declarados pelo
+  provedor e não garantem que os peers estejam acessíveis.
+- **Seleção de arquivo:** mantém o índice original `fileIdx` como `oindex`
+  na chamada oficial `plugin://plugin.video.elementum/play` quando informado.
+- **Fontes sem peers:** quando o provedor informa *zero* seeders, exibe um
+  alerta com opção de cancelar; sem contagem disponível, não inventa zero.
+- **Reprodução:** um único comando `PlayMedia` por escolha; não dispara
+  repetição automática enquanto o Elementum ainda está iniciando.
+
+As mudanças são no addon Kodi, não no Worker da Cloudflare. A rapidez real
+continua dependente de peers, rede, espaço disponível, velocidade do disco e
+configurações de buffer do Elementum. Se uma fonte continuar travando, teste
+outra com seeders positivos e consulte **Ferramentas > Configurações do
+Elementum**, ou o log do Kodi para identificar falhas de buffer e metadata.
