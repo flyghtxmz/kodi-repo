@@ -13,6 +13,7 @@ import requests
 
 BASE_URL = "https://torrentio.strem.fun/brazuca"
 IMDB_ID = re.compile(r"^tt[0-9]{5,12}$")
+STREAM_ID = re.compile(r"^tt[0-9]{5,12}(?::(?:0|[1-9][0-9]{0,2}):[1-9][0-9]{0,3})?$")
 MAX_RESPONSE_BYTES = 500_000
 MAX_CACHE_BYTES = 1_000_000
 CACHE_TTL = 300
@@ -51,7 +52,7 @@ def _write_cache(data):
     if path is None:
         return
     pairs = [(key, value) for key, value in data.items()
-             if IMDB_ID.fullmatch(key) and isinstance(value, dict)
+             if STREAM_ID.fullmatch(key) and isinstance(value, dict)
              and isinstance(value.get("at"), (int, float))]
     pairs.sort(key=lambda pair: pair[1]["at"], reverse=True)
     pairs = pairs[:32]
@@ -159,17 +160,23 @@ def parse_streams(payload):
     return list(result.values())
 
 
-def list_sources(title, year="", imdb=""):
+def list_sources(title, year="", imdb="", season=None, episode=None):
     if not imdb:
         return []
     if not isinstance(imdb, str) or not IMDB_ID.fullmatch(imdb):
         raise ValueError("Identificador IMDb incorreto.")
+    is_series = season is not None or episode is not None
+    if is_series and (type(season) is not int or type(episode) is not int
+                      or not 0 <= season <= 999 or not 1 <= episode <= 9999):
+        raise ValueError("Temporada ou episódio inválido.")
+    stream_id = "{}:{}:{}".format(imdb, season, episode) if is_series else imdb
+    stream_type = "series" if is_series else "movie"
     cache = _read_cache()
-    entry = cache.get(imdb)
+    entry = cache.get(stream_id)
     if (isinstance(entry, dict) and isinstance(entry.get("at"), (int, float))
             and 0 <= time.time() - entry["at"] < CACHE_TTL and isinstance(entry.get("sources"), list)):
         return entry["sources"]
-    with requests.get(BASE_URL + "/stream/movie/" + imdb + ".json",
+    with requests.get(BASE_URL + "/stream/" + stream_type + "/" + stream_id + ".json",
                       headers={"Accept": "application/json", "User-Agent": "FelipeVideos/1.4.1 (Kodi)"},
                       timeout=TIMEOUT, stream=True, allow_redirects=False) as response:
         response.raise_for_status()
@@ -182,6 +189,6 @@ def list_sources(title, year="", imdb=""):
                 raise ValueError("Resposta do Torrentio excedeu o limite.")
             parts.append(chunk)
         sources = parse_streams(json.loads(b"".join(parts).decode("utf-8")))
-    cache[imdb] = {"at": time.time(), "sources": sources}
+    cache[stream_id] = {"at": time.time(), "sources": sources}
     _write_cache(cache)
     return sources
