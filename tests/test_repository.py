@@ -55,7 +55,7 @@ class RepositoryTests(unittest.TestCase):
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
 
 class PluginTests(unittest.TestCase):
-    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None):
+    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None, allow_zero_seed=True):
         calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": [], "popups": [], "lookups": []}
         choices = list(popup_choices) if popup_choices is not None else [0]
         xbmc = types.ModuleType("xbmc")
@@ -122,7 +122,8 @@ class PluginTests(unittest.TestCase):
                 return choices.pop(0) if choices else -1
 
             def yesno(self, title, message):
-                return True
+                calls["dialogs"].append((title, message))
+                return allow_zero_seed
 
             def textviewer(self, title, content):
                 calls["dialogs"].append((title, content))
@@ -271,6 +272,34 @@ class PluginTests(unittest.TestCase):
         self.assertIn("Provedor de teste", result["popups"][1][1][0])
         self.assertEqual(len(result["commands"]), 1)
         self.assertIn("plugin.video.elementum/play?uri=", result["commands"][0])
+
+    def test_zero_seed_source_warns_before_playback(self):
+        empty = [{
+            "title": "Filme sem peers", "source": "Torrentio", "quality": "1080p",
+            "size": 2000, "seeders": 0, "language": "pt-br",
+            "url": "https://media.example.org/video.torrent",
+        }]
+        cancelled = self.run_addon("recent_detail",
+            query={"identifier": "tt1234567"},
+            popup_choices=[0, 0], source_items=empty, allow_zero_seed=False)
+        self.assertEqual(cancelled["commands"], [])
+        self.assertEqual(cancelled["dialogs"][0][0], "Fonte sem seeders")
+        agreed = self.run_addon("recent_detail",
+            query={"identifier": "tt1234567"},
+            popup_choices=[0, 0], source_items=empty)
+        self.assertEqual(len(agreed["commands"]), 1)
+
+    def test_unknown_seeders_do_not_trigger_zero_seed_warning(self):
+        source = [{
+            "title": "Filme", "source": "Torrentio", "quality": "1080p",
+            "size": 2000, "seeders": None, "language": "pt-br",
+            "url": "https://media.example.org/video.torrent",
+        }]
+        result = self.run_addon("recent_detail",
+            query={"identifier": "tt1234567"},
+            popup_choices=[0, 0], source_items=source, allow_zero_seed=False)
+        self.assertEqual(len(result["commands"]), 1)
+        self.assertEqual(result["dialogs"], [])
 
     def test_old_cloudflare_action_opens_popup(self):
         result = self.run_addon("cloudflare_sources",
