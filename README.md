@@ -34,7 +34,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.4.5
+## Felipe Vídeos 1.5.0
 
 **Torrentio direto no Kodi:** a busca de fontes de filmes consulta o Worker e o
 Torrentio em paralelo, pela conexão da própria TV Box. Os resultados aparecem
@@ -195,3 +195,19 @@ reais, disponibilidade de peers, armazenamento e configuração de buffer.
 
 O addon não garante que um torrent listado seja reproduzível. A origem do
 problema só pode ser comprovada no Kodi/TV Box, não pelos testes no GitHub.
+
+
+## Versão 1.5.0 — catálogo, séries e desempenho
+
+- Filmes e séries rejeitam itens de outro tipo; fichas conferem o IMDb solicitado.
+- Navegação por ano (1900 até o atual), além de gêneros e categorias existentes.
+- Ordenação configurável dentro da página: nome, relevância, ano ou nota.
+- Episódios exigem índice original do arquivo; nomes de arquivo com temporada/episódio incompatíveis são descartados. Isso reduz seleções erradas, mas não verifica o conteúdo do vídeo nem corrige metadados incorretos do provedor.
+- Cloudflare preserva índices distintos do mesmo torrent. O Worker do GitHub também deduplica por hash e índice.
+- Catálogos em cache por 30 minutos; fichas por 24 horas; dados antigos por até sete dias como fallback offline. Endereço do Worker em cache por 24 horas.
+- Traduções de listas têm orçamento de espera de quatro segundos; dados já disponíveis são preservados e itens pendentes podem ser consultados na próxima visita.
+- Busca de fontes com progresso, cancelamento e resultados parciais após prazo de 12 segundos para filmes. Cancelamento impede playback; requisições em andamento encerram pelo timeout de rede.
+- Favoritos, histórico das últimas 20 buscas, filtro de português e resolução máxima.
+- Limpeza de cache preserva favoritos e histórico. Fontes de séries usam novo cache para descartar respostas antigas sem as novas validações.
+
+A reprodução continua dependente do Elementum. Retomar automaticamente a posição e sincronizar assistidos ainda não estão implementados. O Worker publicado não é substituído por esta atualização: o código de produção personalizado precisa ser exportado e comparado antes de qualquer deploy.

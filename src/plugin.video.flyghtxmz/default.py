@@ -70,8 +70,34 @@ def show_menu():
     add_item("Filmes", "sections", folder=True, media="movie")
     add_item("Séries", "sections", folder=True, media="series")
     add_item("Buscar filmes e séries", "recent_search")
+    add_item("Meus favoritos", "favorites", folder=True)
+    add_item("Buscas recentes", "search_history", folder=True)
     add_item("Ferramentas", "tools", folder=True)
     add_item("Sobre o Felipe Vídeos", "about")
+    finish()
+
+
+def show_saved(action):
+    from user_state import read
+    data = read()
+    xbmcplugin.setContent(HANDLE, "videos")
+    if action == "favorites":
+        for movie in data.get('favorites') or []:
+            if not isinstance(movie, dict) or movie.get('type') not in ('movie', 'series'):
+                continue
+            if not re.fullmatch(r'tt[0-9]{5,12}', str(movie.get('id', ''))):
+                continue
+            kind = 'Série' if movie['type'] == 'series' else 'Filme'
+            add_item("{} — {}".format(movie.get('title') or movie['id'], kind),
+                     "recent_detail", identifier=movie['id'], media=movie['type'],
+                     artwork={'poster': movie.get('poster') or ''})
+    else:
+        for entry in data.get('searches') or []:
+            if not isinstance(entry, dict) or entry.get('media') not in ('movie', 'series'):
+                continue
+            kind = 'Séries' if entry['media'] == 'series' else 'Filmes'
+            add_item("{} — {}".format(entry['term'], kind), "recent", folder=True,
+                     category='search_' + entry['media'], term=entry['term'])
     finish()
 
 
@@ -85,6 +111,15 @@ def show_sections(media):
             add_item(title.format(year=year, prev_year=year-1, prev2_year=year-2), "recent",
                      folder=True, category=category)
     add_item("Gêneros", "genres", folder=True, media=media)
+    add_item("Por ano", "years", folder=True, media=media)
+    finish()
+
+
+def show_years(media):
+    prefix = "series" if media == "series" else "movies"
+    xbmcplugin.setContent(HANDLE, "videos")
+    for year in range(date.today().year, 1899, -1):
+        add_item(str(year), "recent", folder=True, category="{}_year_{}".format(prefix, year))
     finish()
 
 
@@ -105,6 +140,7 @@ def show_tools():
     add_item("Testar Elementum (abrir addon)", "elementum_test")
     add_item("Como instalar o Elementum", "elementum_help")
     add_item("Diagnóstico de conexão", "diagnostic")
+    add_item("Limpar cache de catálogo e fontes", "clear_cache")
     add_item("Configurações avançadas", "settings")
     finish()
 
@@ -113,7 +149,7 @@ def show_recent(category, page=1, term=""):
     from recent import list_titles
     xbmcplugin.setContent(HANDLE, "tvshows" if category.startswith("series_") or category == "search_series" else "movies")
     try:
-        results, more = list_titles(category, page=page, search_term=term)
+        results, more = list_titles(category, page=page, search_term=term, sort="relevance")
         # Mostra nomes e sinopses localizados no painel da capa,
         # preservando o IMDb ID para a busca de torrents.
         from metadata_ptbr import descriptions_for_catalog, FALLBACK_SYNOPSIS
@@ -134,7 +170,18 @@ def show_recent(category, page=1, term=""):
             value = unicodedata.normalize("NFKD", row[0].casefold())
             return ("".join(c for c in value if not unicodedata.combining(c)),
                     row[2]["id"])
-        rendered.sort(key=az)
+        ordering = ADDON.getSetting("catalog_sort") or "name"
+        if ordering == "name":
+            rendered.sort(key=az)
+        elif ordering == "year":
+            rendered.sort(key=lambda row: str(row[2].get("year") or ""), reverse=True)
+        elif ordering == "rating":
+            def rating_key(row):
+                try:
+                    return float(row[2].get("rating") or 0)
+                except (TypeError, ValueError):
+                    return 0
+            rendered.sort(key=rating_key, reverse=True)
         for label, plot, movie in rendered:
             info = {"title": label, "plot": plot, "plotoutline": plot,
                     "mediatype": "tvshow" if movie["type"] == "series" else "movie",
@@ -175,6 +222,7 @@ def show_recent_detail(identifier, media):
         if movie.get("trailer_id"):
             options.append(("Ver trailer", "recent_trailer"))
         options.append(("Onde assistir no Brasil", "recent_where"))
+        options.append(("Adicionar/remover dos favoritos", "favorite"))
         rating = movie.get("rating") or "Indisponível"
         rating_label = rating + "/10" if rating != "Indisponível" else rating
         heading = "{} ({}) | IMDb: {}".format(
@@ -195,6 +243,10 @@ def show_recent_detail(identifier, media):
                                      str(movie.get("year") or "")[:4],
                                      movie.get("imdb_id") or (
                                          identifier if re.fullmatch(r"tt[0-9]{5,12}", identifier) else ""))
+        elif action == "favorite":
+            from user_state import toggle_favorite
+            added = toggle_favorite(movie)
+            xbmcgui.Dialog().ok("Favoritos", "Título adicionado." if added else "Título removido.")
         else:
             perform_recent_action(action, movie)
     except Exception as exc:
@@ -231,19 +283,64 @@ def choose_series_episode(movie, season):
         imdb, season=season, episode=selected["episode"])
 
 
+def wait_for_sources(title, **kwargs):
+    """Keep Kodi responsive; timed-out network jobs never trigger playback."""
+    import queue
+    import threading
+    import time
+    from source_client import list_sources
+    if not hasattr(xbmcgui, "DialogProgress"):
+        return list_sources(title, **kwargs)
+    channel = queue.Queue()
+    cancelled = threading.Event()
+    def work():
+        try:
+            channel.put((True, list_sources(title, cancel=cancelled.is_set, **kwargs)))
+        except Exception as error:
+            channel.put((False, error))
+    dialog = xbmcgui.DialogProgress()
+    dialog.create("Buscando fontes", title)
+    threading.Thread(target=work, daemon=True).start()
+    start = time.monotonic()
+    try:
+        while time.monotonic() - start < 16:
+            if dialog.iscanceled():
+                return None
+            try:
+                ok, result = channel.get(timeout=0.1)
+                if ok:
+                    return result
+                raise result
+            except queue.Empty:
+                dialog.update(min(95, int((time.monotonic() - start) * 6)),
+                              "Consultando provedores — você pode cancelar")
+        raise TimeoutError("Tempo limite de consulta")
+    finally:
+        cancelled.set()
+        dialog.close()
+
+
 def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None):
     """Exibe popup de fontes e entrega a escolhida ao Elementum."""
     from source_client import list_sources
     try:
         if season is not None:
-            sources = list_sources(title, year=year, imdb=imdb,
+            sources = wait_for_sources(title, year=year, imdb=imdb,
                                    season=season, episode=episode)
         else:
-            sources = list_sources(title, year=year, imdb=imdb)
+            sources = wait_for_sources(title, year=year, imdb=imdb)
+        if sources is None:
+            return
+        max_quality = ADDON.getSetting("max_quality") or "any"
+        ranks = {"SD": 0, "480p": 1, "720p": 2, "1080p": 3, "4K": 4}
+        if max_quality in ranks:
+            sources = [s for s in sources if ranks.get(s.get("quality"), 0) <= ranks[max_quality]]
+        if ADDON.getSetting("portuguese_only") == "true":
+            sources = [s for s in sources if s.get("language") in ("pt-br", "pt", "ptbr")]
         if not sources:
             xbmcgui.Dialog().ok(
                 "Nenhuma fonte disponível",
-                ("O Torrentio não retornou fontes para este episódio." if season is not None else
+                ("Nenhuma fonte segura para este episódio com os filtros atuais." if season is not None else
                  "Cloudflare e Torrentio não retornaram fontes compatíveis para este título."))
             return
         labels = []
@@ -252,7 +349,7 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None)
             seed_text = str(source["seeders"]) if source["seeders"] is not None else "n/d"
             language = source["language"] if source["language"] != "unknown" else "n/d"
             labels.append("{} | {} | {} | {} | Seeds: {} | Áudio: {}".format(
-                source["title"], source["source"], source["quality"],
+                source["title"][:70], source["source"], source["quality"],
                 size_text, seed_text, language))
         target = "{} S{:02d}E{:02d}".format(title, season, episode) if season is not None else title
         index = xbmcgui.Dialog().select("Selecionar fonte — {}".format(target), labels)
@@ -309,6 +406,11 @@ def search_recent():
         choice = xbmcgui.Dialog().select("O que deseja pesquisar?", ["Filmes", "Séries"])
         if choice in (0, 1):
             category = "search_movie" if choice == 0 else "search_series"
+            try:
+                from user_state import remember_search
+                remember_search(result.strip()[:80], 'movie' if choice == 0 else 'series')
+            except (ImportError, OSError):
+                pass
             xbmc.executebuiltin("Container.Update({})".format(plugin_url(
                 "recent", category=category, page=1, term=result.strip()[:80])))
 
@@ -485,8 +587,20 @@ def show_about():
 def main():
     params = parse_qs(sys.argv[2].lstrip("?")) if len(sys.argv) > 2 else {}
     action = params.get("action", [""])[0]
-    if action == "sections":
+    if action in ("favorites", "search_history"):
+        show_saved(action)
+    elif action == "sections":
         show_sections(params.get("media", ["movie"])[0])
+    elif action == "years":
+        show_years(params.get("media", ["movie"])[0])
+    elif action == "clear_cache":
+        finish()
+        from local_cache import clear
+        try:
+            clear()
+            xbmcgui.Dialog().ok("Cache", "Cache de catálogo, metadados e fontes removido.")
+        except OSError:
+            xbmcgui.Dialog().ok("Cache", "Não foi possível remover todos os arquivos.")
     elif action == "genres":
         show_genres(params.get("media", ["movie"])[0])
     elif action == "tools":

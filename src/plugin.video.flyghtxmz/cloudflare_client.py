@@ -38,12 +38,24 @@ def configured_endpoint():
     manual = addon.getSetting("cloudflare_endpoint").strip()
     if manual:
         return _worker_url(manual)
-    with requests.get(DISCOVERY_URL, timeout=8, stream=True) as response:
-        response.raise_for_status()
-        payload = _read_json(response)
+    from local_cache import get, put
+    cached = get(DISCOVERY_URL, 86400)
+    if isinstance(cached, str):
+        return _worker_url(cached)
+    try:
+        with requests.get(DISCOVERY_URL, timeout=4, stream=True) as response:
+            response.raise_for_status()
+            payload = _read_json(response)
+    except (OSError, ValueError, requests.exceptions.RequestException):
+        cached = get(DISCOVERY_URL, 30 * 86400)
+        if isinstance(cached, str):
+            return _worker_url(cached)
+        raise
     if not isinstance(payload, dict) or not payload.get("endpoint"):
         raise ValueError("O endereço do Worker ainda não foi publicado no projeto.")
-    return _worker_url(payload["endpoint"])
+    endpoint = _worker_url(payload["endpoint"])
+    put(DISCOVERY_URL, endpoint)
+    return endpoint
 
 
 def _is_removed_provider(item):
@@ -172,8 +184,15 @@ def list_sources(title, year="", imdb=""):
             "language": str(item.get("language") or "unknown")[:30],
             "url": uri,
         }
+        index = item.get('file_index', item.get('fileIdx'))
+        if index is not None:
+            if type(index) is not int or not 0 <= index <= 100_000:
+                continue
+            candidate['file_index'] = index
+        elif re.search(r'\b(pack|collection|coleção|trilogia|trilogy)\b', label, re.I):
+            continue
         hash_value = _torrent_hash(item, uri)
-        dedupe_key = ("hash", hash_value) if hash_value else ("url", uri)
+        dedupe_key = ("hash", hash_value, index) if hash_value else ("url", uri, index)
         previous = unique.get(dedupe_key)
         if previous is None or _source_priority(candidate) > _source_priority(previous):
             unique[dedupe_key] = candidate

@@ -55,7 +55,7 @@ class RepositoryTests(unittest.TestCase):
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
 
 class PluginTests(unittest.TestCase):
-    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None, allow_zero_seed=True):
+    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None, allow_zero_seed=True, settings=None, progress_cancel=None):
         calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": [], "popups": [], "lookups": []}
         choices = list(popup_choices) if popup_choices is not None else [0]
         xbmc = types.ModuleType("xbmc")
@@ -72,6 +72,8 @@ class PluginTests(unittest.TestCase):
                 return "0.1.114" if key == "version" else ""
 
             def getSetting(self, key):
+                if settings and key in settings:
+                    return settings[key]
                 return custom_url if key == "custom_url" else (cloudflare_endpoint if key == "cloudflare_endpoint" else "")
 
             def openSettings(self):
@@ -140,7 +142,7 @@ class PluginTests(unittest.TestCase):
             } for movie in movies
         }
         cloudflare_stub = types.ModuleType("cloudflare_client")
-        def fake_sources(title, year="", imdb="", season=None, episode=None):
+        def fake_sources(title, year="", imdb="", season=None, episode=None, cancel=None):
             calls["lookups"].append((title, imdb, season, episode))
             return source_items if source_items is not None else [{
                 "title": "Vídeo autorizado", "quality": "1080p", "size": 1024,
@@ -193,6 +195,17 @@ class PluginTests(unittest.TestCase):
         xbmcgui.INPUT_ALPHANUM = 0
         xbmcgui.ListItem = ListItem
         xbmcgui.Dialog = Dialog
+        if progress_cancel is not None:
+            class Progress:
+                def create(self, *args):
+                    calls['progress_open'] = True
+                def update(self, *args):
+                    pass
+                def iscanceled(self):
+                    return progress_cancel
+                def close(self):
+                    calls['progress_closed'] = True
+            xbmcgui.DialogProgress = Progress
         xbmcplugin.addDirectoryItem = lambda **kwargs: calls["items"].append(kwargs)
         xbmcplugin.setContent = lambda *args: None
         xbmcplugin.endOfDirectory = lambda *args, **kwargs: calls["ends"].append(True)
@@ -211,23 +224,43 @@ class PluginTests(unittest.TestCase):
 
     def test_main_menu_is_short_and_categorized(self):
         result = self.run_addon()
-        self.assertEqual(len(result["items"]), 5)
+        self.assertEqual(len(result["items"]), 7)
         labels = [i["listitem"].label for i in result["items"]]
         self.assertEqual(labels, ["Filmes", "Séries", "Buscar filmes e séries",
-                                  "Ferramentas", "Sobre o Felipe Vídeos"])
+                                  "Meus favoritos", "Buscas recentes", "Ferramentas", "Sobre o Felipe Vídeos"])
         self.assertEqual(len(result["ends"]), 1)
         self.assertNotIn("Archive", " ".join(labels))
         self.assertNotIn("demo", " ".join(i["url"] for i in result["items"]))
+
+    def test_cancel_progress_never_starts_playback(self):
+        result = self.run_addon('cloudflare_sources', query={'title': 'Film', 'identifier': 'tt1234567'},
+                                popup_choices=[0], progress_cancel=True)
+        self.assertTrue(result['progress_closed'])
+        self.assertEqual(result['commands'], [])
+
+    def test_progress_result_still_starts_selected_source(self):
+        result = self.run_addon('cloudflare_sources', query={'title': 'Film', 'identifier': 'tt1234567'},
+                                popup_choices=[0], progress_cancel=False)
+        self.assertTrue(result['progress_closed'])
+        self.assertEqual(len(result['commands']), 1)
+
+    def test_resolution_filter_prevents_playing_excluded_source(self):
+        source = {'title': 'Film', 'source': 'Test', 'quality': '4K', 'size': 1,
+                  'seeders': 5, 'language': 'pt-br', 'url': 'magnet:?xt=urn:btih:'+'a'*40}
+        result = self.run_addon('cloudflare_sources', query={'title': 'Film'},
+                                source_items=[source], settings={'max_quality': '720p'})
+        self.assertEqual(result['commands'], [])
+        self.assertIn('Nenhuma fonte', result['dialogs'][0][0])
 
     def test_sections_and_tools(self):
         movies = self.run_addon("sections", query={"media": "movie"})
         series = self.run_addon("sections", query={"media": "series"})
         tools = self.run_addon("tools")
-        self.assertEqual(len(movies["items"]), 6)
-        self.assertEqual(len(series["items"]), 6)
-        self.assertEqual(len(tools["items"]), 6)
-        self.assertEqual(movies["items"][-1]["listitem"].label, "Gêneros")
-        self.assertEqual(series["items"][-1]["listitem"].label, "Gêneros")
+        self.assertEqual(len(movies["items"]), 7)
+        self.assertEqual(len(series["items"]), 7)
+        self.assertEqual(len(tools["items"]), 7)
+        self.assertEqual(movies["items"][-1]["listitem"].label, "Por ano")
+        self.assertEqual(series["items"][-1]["listitem"].label, "Por ano")
         film_genres = self.run_addon("genres", query={"media": "movie"})
         show_genres = self.run_addon("genres", query={"media": "series"})
         self.assertEqual([x["listitem"].label for x in film_genres["items"]], ["Ação", "Terror"])
@@ -264,7 +297,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(result["items"], [])
         self.assertEqual(len(result["popups"]), 1)
         self.assertEqual(result["popups"][0][1],
-            ["Buscar fontes", "Ver trailer", "Onde assistir no Brasil"])
+            ["Buscar fontes", "Ver trailer", "Onde assistir no Brasil", "Adicionar/remover dos favoritos"])
         self.assertEqual(result["commands"], [])
 
     def test_popup_source_selection_starts_elementum(self):

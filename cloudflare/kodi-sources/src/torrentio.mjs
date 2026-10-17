@@ -113,10 +113,12 @@ export function fromTorrentioPayload(payload) {
     };
     valid++;
     if(language==="pt-br") ptBr++;
-    const prior=unique.get(hash);
-    if (!prior || better(src,prior)) unique.set(hash,src);
+    const key = hash + ":" + (fileIdx ?? "");
+    const prior=unique.get(key);
+    if (!prior || better(src,prior)) unique.set(key,src);
   }
-  const sources=Array.from(unique.values()).sort((a,b)=>{
+  const indexed = new Set([...unique.values()].filter(x => x.fileIdx !== null).map(x => x.infoHash));
+  const sources=Array.from(unique.values()).filter(x => x.fileIdx !== null || !indexed.has(x.infoHash)).sort((a,b)=>{
     const x=score(a),y=score(b);
     for(let i=0;i<x.length;i++) if(x[i]!==y[i]) return y[i]-x[i];
     return a.title.localeCompare(b.title,"pt-BR");
@@ -141,8 +143,9 @@ export function mergeSources(existing=[],additional=[]) {
     if(REMOVED.has(normalized(item.source))) continue;
     const uri=item.url || item.magnet;
     const hash=torrentHash(item) || hashFromUri(uri);
-    const key=hash || (typeof uri==="string" && uri.startsWith("https://") ? uri : "");
-    if (!key) continue;
+    const identity=hash || (typeof uri==="string" && uri.startsWith("https://") ? uri : "");
+    if (!identity) continue;
+    const key = identity + ":" + (item.fileIdx ?? item.file_index ?? "");
     const prior=map.get(key);
     if (!prior || better(item,prior)) map.set(key,item);
   }

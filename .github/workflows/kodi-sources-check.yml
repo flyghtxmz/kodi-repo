@@ -6,6 +6,10 @@ on:
     paths:
       - 'cloudflare/kodi-sources/**'
       - '.github/workflows/kodi-sources-check.yml'
+  pull_request:
+    paths:
+      - 'cloudflare/kodi-sources/**'
+      - '.github/workflows/kodi-sources-check.yml'
   workflow_dispatch:
 
 jobs:

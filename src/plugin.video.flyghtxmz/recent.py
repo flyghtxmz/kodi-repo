@@ -78,13 +78,28 @@ def fetch(url):
     parsed = urlsplit(url)
     if parsed.scheme != "https" or parsed.hostname != "v3-cinemeta.strem.io":
         raise ValueError("Origem de catálogo não permitida.")
+    from local_cache import get, put
+    ttl = 86400 if '/meta/' in parsed.path else 1800
+    cached = get(url, ttl)
+    if isinstance(cached, dict):
+        return cached
     req = Request(url, headers={"User-Agent":"KodiFelipeVideos/1.4.0 (metadata)",
                                 "Accept":"application/json"})
-    with urlopen(req, timeout=12) as response:
-        data = response.read(MAX_SIZE + 1)
-    if len(data) > MAX_SIZE:
-        raise ValueError("Resposta do catálogo muito grande.")
-    return json.loads(data.decode("utf-8"))
+    try:
+        with urlopen(req, timeout=8) as response:
+            data = response.read(MAX_SIZE + 1)
+        if len(data) > MAX_SIZE:
+            raise ValueError("Resposta do catálogo muito grande.")
+        payload = json.loads(data.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("Formato de catálogo inválido.")
+        put(url, payload)
+        return payload
+    except (OSError, ValueError):
+        stale = get(url, 7 * 86400)
+        if isinstance(stale, dict):
+            return stale
+        raise
 
 
 def safe_title(value, limit=150):
@@ -113,6 +128,9 @@ def _parts(category, year=None, query=None):
             raise ValueError("Digite um título.")
         media = "movie" if category == "search_movie" else "series"
         return media, "top", "search=" + quote(query.strip()[:80], safe="")
+    match = re.fullmatch(r"(movies|series)_year_(\d{4})", category)
+    if match and 1900 <= int(match[2]) <= year:
+        return ('movie' if match[1] == 'movies' else 'series'), 'year', 'genre=' + match[2]
     allowed = {name for name, _ in CATEGORIES + GENRE_CATEGORIES}
     if category not in allowed:
         raise ValueError("Categoria desconhecida.")
@@ -142,7 +160,7 @@ def normalize(entry, kind=None):
     if not isinstance(imdb, str) or not IMDB_ID.fullmatch(imdb):
         return None
     media = entry.get("type") or kind or "movie"
-    if media not in ("movie", "series"):
+    if media not in ("movie", "series") or (kind and media != kind):
         return None
     poster = entry.get("poster") or ""
     if not isinstance(poster, str) or not poster.startswith("https://"):
@@ -159,7 +177,7 @@ def normalize(entry, kind=None):
     }
 
 
-def list_titles(category, page=1, search_term="", year=None):
+def list_titles(category, page=1, search_term="", year=None, sort="name"):
     page = max(1, min(int(page), PAGES))
     media, catalog, extra = _parts(category, year=year, query=search_term)
     if page > 1:
@@ -171,12 +189,16 @@ def list_titles(category, page=1, search_term="", year=None):
     results = []
     for item in raw_items[:PER_PAGE]:
         normalized = normalize(item, media)
-        if normalized:
+        if normalized and normalized['id'] not in {row['id'] for row in results}:
+            requested_year = re.search(r'genre=(\d{4})(?:&|$)', extra)
+            if requested_year and normalized['year'] and normalized['year'][:4] != requested_year[1]:
+                continue
             results.append(normalized)
     def az(movie):
         text = unicodedata.normalize("NFKD", movie["title"].casefold())
         return ("".join(c for c in text if not unicodedata.combining(c)), movie["id"])
-    results.sort(key=az)
+    if sort == "name":
+        results.sort(key=az)
     return results, len(raw_items) >= PER_PAGE and page < PAGES
 
 
@@ -216,8 +238,8 @@ def detail(identifier, media="movie"):
     payload = fetch(BASE + "/meta/{}/{}.json".format(media, identifier))
     meta = payload.get("meta") or {}
     value = normalize(meta, media)
-    if not value:
-        raise ValueError("Detalhes indisponíveis.")
+    if not value or value["id"] != identifier:
+        raise ValueError("Detalhes não correspondem ao título solicitado.")
     trailers = meta.get("trailerStreams") or meta.get("trailers") or []
     trailer_id = ""
     for trailer in trailers:
