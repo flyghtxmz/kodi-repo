@@ -10,7 +10,15 @@ def _priority(item):
     language = str(item.get("language") or "unknown").casefold().replace("_", "-")
     language_rank = 3 if language in ("pt-br", "ptbr", "brazilian", "portugues", "português") else 2 if language == "pt" else 1 if language == "en" else 0
     quality_rank = {"4K": 4, "1080p": 3, "720p": 2, "480p": 1, "SD": 0}
-    return (language_rank, quality_rank.get(item.get("quality"), 0), item.get("seeders") or 0)
+    # Dentro da preferência de idioma, privilegiar peers realmente informados
+    # antes de resolução: 1080p com seeders tende a iniciar antes de 4K vazio.
+    raw_seeds = item.get("seeders")
+    try:
+        seeds = max(0, int(raw_seeds)) if raw_seeds is not None else 0
+    except (TypeError, ValueError):
+        seeds = 0
+    return (language_rank, 1 if seeds > 0 else 0, seeds,
+            quality_rank.get(item.get("quality"), 0))
 
 
 def merge_sources(groups):
