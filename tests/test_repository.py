@@ -56,7 +56,7 @@ class RepositoryTests(unittest.TestCase):
 
 class PluginTests(unittest.TestCase):
     def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None):
-        calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": [], "popups": []}
+        calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": [], "popups": [], "lookups": []}
         choices = list(popup_choices) if popup_choices is not None else [0]
         xbmc = types.ModuleType("xbmc")
         xbmcaddon = types.ModuleType("xbmcaddon")
@@ -116,12 +116,14 @@ class PluginTests(unittest.TestCase):
             } for movie in movies
         }
         cloudflare_stub = types.ModuleType("cloudflare_client")
-        cloudflare_stub.list_sources = lambda title, year="", imdb="": source_items if source_items is not None else [{
-            "title": "Vídeo autorizado", "quality": "1080p", "size": 1024,
-            "source": "Provedor de teste", "seeders": 8,
-            "language": "pt-br",
-            "url": "https://media.example.org/video.torrent",
-        }]
+        def fake_sources(title, year="", imdb="", season=None, episode=None):
+            calls["lookups"].append((title, imdb, season, episode))
+            return source_items if source_items is not None else [{
+                "title": "Vídeo autorizado", "quality": "1080p", "size": 1024,
+                "source": "Provedor de teste", "seeders": 8,
+                "language": "pt-br", "url": "https://media.example.org/video.torrent",
+            }]
+        cloudflare_stub.list_sources = fake_sources
         cloudflare_stub.is_supported_source = lambda url: (
             url == "https://media.example.org/video.torrent")
         recent_stub = types.ModuleType("recent")
@@ -148,6 +150,15 @@ class PluginTests(unittest.TestCase):
             "id": ident, "type": media, "title": "Movie Recent",
             "year": "2026", "plot": "Sinopse", "rating": "7.5",
             "poster": "https://example.org/poster.jpg", "trailer_id": "ZkN2M4ODdys",
+            "original_title": "Test Series" if media == "series" else "Movie Recent",
+            "episodes": ({
+                0: [{"season": 0, "episode": 1, "title": "Especial", "id": ident + ":0:1"}],
+                1: [
+                    {"season": 1, "episode": 1, "title": "Piloto", "id": ident + ":1:1"},
+                    {"season": 1, "episode": 3, "title": "Terceiro", "id": ident + ":1:3"},
+                ],
+                2: [{"season": 2, "episode": 8, "title": "Final", "id": ident + ":2:8"}],
+            } if media == "series" else {}),
         }
         recent_stub.justwatch_search_url = lambda title: "https://www.justwatch.com/br/busca?q=Movie+Recent"
         xbmcaddon.Addon = Addon
@@ -264,6 +275,48 @@ class PluginTests(unittest.TestCase):
             source_items=[])
         self.assertEqual(len(result["popups"]), 1)
         self.assertEqual(result["dialogs"][0][0], "Nenhuma fonte disponível")
+
+    def test_series_popup_shows_actual_seasons_not_folders(self):
+        result = self.run_addon(
+            "recent_detail", query={"identifier": "tt1234567", "media": "series"},
+            popup_choices=[-1])
+        self.assertEqual(result["items"], [])
+        seasons = result["popups"][0][1]
+        self.assertIn("Especiais (S00) — 1 episódio(s)", seasons)
+        self.assertIn("Temporada 1 — 2 episódio(s)", seasons)
+        self.assertIn("Temporada 2 — 1 episódio(s)", seasons)
+        self.assertNotIn("Buscar fontes", seasons)
+
+    def test_series_popup_uses_correct_season_episode_not_list_index(self):
+        result = self.run_addon(
+            "recent_detail", query={"identifier": "tt1234567", "media": "series"},
+            popup_choices=[1, 1, 0])
+        self.assertEqual(len(result["popups"]), 3)
+        self.assertEqual(
+            result["popups"][1][1],
+            ["S01E01 — Piloto", "S01E03 — Terceiro"])
+        self.assertIn("S01E03", result["popups"][2][0])
+        self.assertEqual(result["lookups"], [("Test Series", "tt1234567", 1, 3)])
+        self.assertEqual(len(result["commands"]), 1)
+
+    def test_series_specials_and_episode_cancel(self):
+        special = self.run_addon(
+            "recent_detail", query={"identifier": "tt1234567", "media": "series"},
+            popup_choices=[0, 0, 0])
+        self.assertEqual(special["lookups"][0][2:], (0, 1))
+        cancelled = self.run_addon(
+            "recent_detail", query={"identifier": "tt1234567", "media": "series"},
+            popup_choices=[2, -1])
+        self.assertEqual(len(cancelled["popups"]), 2)
+        self.assertEqual(cancelled["lookups"], [])
+        self.assertEqual(cancelled["commands"], [])
+
+    def test_series_second_season_episode_eight(self):
+        result = self.run_addon(
+            "recent_detail", query={"identifier": "tt1234567", "media": "series"},
+            popup_choices=[2, 0, 0])
+        self.assertIn("S02E08", result["popups"][2][0])
+        self.assertEqual(result["lookups"][0][2:], (2, 8))
 
     def test_cloudflare_rejects_untrusted_playback_links(self):
         result = self.run_addon("cloudflare_play", query={
