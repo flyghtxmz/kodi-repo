@@ -68,6 +68,9 @@ class PluginTests(unittest.TestCase):
                 if id == "plugin.video.elementum" and not elementum_installed:
                     raise RuntimeError("Elementum ausente")
 
+            def getAddonInfo(self, key):
+                return "0.1.114" if key == "version" else ""
+
             def getSetting(self, key):
                 return custom_url if key == "custom_url" else (cloudflare_endpoint if key == "cloudflare_endpoint" else "")
 
@@ -222,7 +225,7 @@ class PluginTests(unittest.TestCase):
         tools = self.run_addon("tools")
         self.assertEqual(len(movies["items"]), 6)
         self.assertEqual(len(series["items"]), 6)
-        self.assertEqual(len(tools["items"]), 5)
+        self.assertEqual(len(tools["items"]), 6)
         self.assertEqual(movies["items"][-1]["listitem"].label, "Gêneros")
         self.assertEqual(series["items"][-1]["listitem"].label, "Gêneros")
         film_genres = self.run_addon("genres", query={"media": "movie"})
@@ -232,6 +235,7 @@ class PluginTests(unittest.TestCase):
         self.assertTrue(all(x["isFolder"] for x in movies["items"]))
         self.assertIn("torrent_input", tools["items"][0]["url"])
         self.assertIn("elementum_settings", tools["items"][1]["url"])
+        self.assertIn("elementum_test", tools["items"][2]["url"])
 
     def test_recent_list_has_poster_and_details(self):
         result = self.run_addon("recent", query={"category": "movies_new"})
@@ -437,6 +441,20 @@ class PluginTests(unittest.TestCase):
     def test_elementum_settings_and_missing_dependency(self):
         self.assertEqual(self.run_addon("elementum_settings")["settings"], 1)
         self.assertEqual(self.run_addon("elementum_settings", elementum_installed=False)["dialogs"][0][0], "Elementum necessário")
+
+    def test_elementum_diagnostic_opens_the_addon_not_an_unverified_torrent(self):
+        result = self.run_addon("elementum_test")
+        self.assertEqual(len(result["ends"]), 1)
+        self.assertEqual(len(result["commands"]), 1)
+        self.assertEqual(
+            result["commands"][0],
+            "ActivateWindow(Videos,plugin://plugin.video.elementum/,return)")
+        self.assertIn("0.1.114", result["dialogs"][0][1])
+
+    def test_elementum_diagnostic_warns_if_addon_not_installed(self):
+        result = self.run_addon("elementum_test", elementum_installed=False)
+        self.assertEqual(result["commands"], [])
+        self.assertEqual(result["dialogs"][0][0], "Elementum necessário")
 
     def test_magnet_accepts_base32(self):
         magnet = "magnet:?xt=urn:btih:" + "A" * 32

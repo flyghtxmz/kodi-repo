@@ -102,6 +102,7 @@ def show_tools():
     xbmcplugin.setContent(HANDLE, "files")
     add_item("Adicionar magnet ou arquivo .torrent", "torrent_input")
     add_item("Configurações do Elementum", "elementum_settings")
+    add_item("Testar Elementum (abrir addon)", "elementum_test")
     add_item("Como instalar o Elementum", "elementum_help")
     add_item("Diagnóstico de conexão", "diagnostic")
     add_item("Configurações avançadas", "settings")
@@ -430,6 +431,27 @@ def open_magnet_dialog():
     xbmc.executebuiltin("PlayMedia({})".format(target))
 
 
+def test_elementum_start():
+    """Abre o Elementum para distinguir erro do motor de fonte sem peers."""
+    finish()
+    installed = elementum_addon()
+    if installed is None:
+        missing_elementum()
+        return
+    try:
+        version = installed.getAddonInfo("version") or "desconhecida"
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        version = "desconhecida"
+    xbmcgui.Dialog().ok(
+        "Teste de inicialização do Elementum",
+        "Elementum instalado (versão {}). O Kodi abrirá o menu do addon. "
+        "Se ele não abrir ou travar, o problema é anterior às fontes "
+        "do Felipe Vídeos. Caso abra normalmente, teste uma fonte com "
+        "seeders positivos e verifique o buffer.".format(version))
+    xbmc.executebuiltin(
+        "ActivateWindow(Videos,plugin://plugin.video.elementum/,return)")
+
+
 def open_elementum_settings():
     finish()
     installed = elementum_addon()
@@ -452,7 +474,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.4.4",
+        "Felipe Vídeos 1.4.5",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -498,6 +520,8 @@ def main():
         open_magnet_dialog()
     elif action == "elementum_settings":
         open_elementum_settings()
+    elif action == "elementum_test":
+        test_elementum_start()
     elif action == "elementum_help":
         show_help()
     elif action == "settings":

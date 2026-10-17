@@ -34,7 +34,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.4.4
+## Felipe Vídeos 1.4.5
 
 **Torrentio direto no Kodi:** a busca de fontes de filmes consulta o Worker e o
 Torrentio em paralelo, pela conexão da própria TV Box. Os resultados aparecem
@@ -163,7 +163,7 @@ pelo Torrentio é preservada até o Elementum. O Worker não precisa consultar o
 - Nenhuma chave TMDb é exigida nas configurações do Kodi, e o Worker de
   produção da Cloudflare não foi modificado.
 
-## Versão 1.4.4 — inicialização de fontes no Elementum
+## Versão 1.4.5 — inicialização de fontes no Elementum
 
 - **Torrentio:** trackers públicos informados na resposta são incluídos no magnet
   (`tr=`), evitando depender exclusivamente de DHT para descobrir peers.
@@ -184,3 +184,14 @@ continua dependente de peers, rede, espaço disponível, velocidade do disco e
 configurações de buffer do Elementum. Se uma fonte continuar travando, teste
 outra com seeders positivos e consulte **Ferramentas > Configurações do
 Elementum**, ou o log do Kodi para identificar falhas de buffer e metadata.
+
+## Diagnóstico Elementum (1.4.5)
+
+**Ferramentas > Testar Elementum (abrir addon)** informa a versão instalada e
+abre o menu nativo do Elementum, sem iniciar torrents aleatórios. Se o
+Elementum não abrir, verifique instalação, inicialização do serviço nativo e
+logs do Kodi. Se abrir mas o torrent escolhido não carregar, confira seeders
+reais, disponibilidade de peers, armazenamento e configuração de buffer.
+
+O addon não garante que um torrent listado seja reproduzível. A origem do
+problema só pode ser comprovada no Kodi/TV Box, não pelos testes no GitHub.
