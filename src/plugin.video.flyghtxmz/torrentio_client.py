@@ -1,12 +1,13 @@
 """Torrentio consultado pelo próprio Kodi, com cache local e seleção de arquivo."""
 import base64
 import json
+import ipaddress
 import os
 from pathlib import Path
 import re
 import tempfile
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, parse_qs, urlsplit
 
 import requests
 
@@ -122,6 +123,54 @@ def _file_index(row):
     return value
 
 
+
+def _is_public_tracker(raw):
+    """Não repassa endpoints locais, credentials ou protocolos desconhecidos."""
+    if not isinstance(raw, str) or not 7 <= len(raw) <= 220:
+        return False
+    try:
+        parsed = urlsplit(raw)
+        if (parsed.scheme not in ("udp", "http", "https") or not parsed.hostname
+                or parsed.username or parsed.password or parsed.fragment
+                or parsed.port == 0):
+            return False
+        host = parsed.hostname.lower().rstrip(".")
+        if host == "localhost" or host.endswith((".local", ".lan", ".internal")):
+            return False
+        try:
+            if not ipaddress.ip_address(host).is_global:
+                return False
+        except ValueError:
+            pass
+        return True
+    except ValueError:
+        return False
+
+
+def _trackers(row):
+    """Recupera trackers explicitamente fornecidos pelo Torrentio (sem inventar)."""
+    candidate = []
+    sources = row.get("sources")
+    if isinstance(sources, list):
+        candidate.extend(item[8:] for item in sources
+                         if isinstance(item, str) and item.startswith("tracker:"))
+    listed = row.get("trackers")
+    if isinstance(listed, list):
+        candidate.extend(item for item in listed if isinstance(item, str))
+    magnet = row.get("magnet")
+    if isinstance(magnet, str) and len(magnet) <= 3000:
+        parsed = urlsplit(magnet)
+        if parsed.scheme == "magnet":
+            candidate.extend(parse_qs(parsed.query).get("tr", []))
+    trackers = []
+    for item in candidate:
+        if _is_public_tracker(item) and item not in trackers:
+            trackers.append(item)
+        if len(trackers) == 8:
+            break
+    return trackers
+
+
 def parse_streams(payload):
     if not isinstance(payload, dict) or not isinstance(payload.get("streams"), list):
         raise ValueError("Resposta inesperada do Torrentio.")
@@ -149,7 +198,11 @@ def parse_streams(payload):
             "quality": _quality(str(row.get("name") or "") + " " + title),
             "size": _size(label), "seeders": int(seed_count[1]) if seed_count else None,
             "language": _language(label), "infoHash": infohash,
-            "url": "magnet:?" + urlencode({"xt": "urn:btih:" + infohash, "dn": title}),
+            # Inclui os trackers devolvidos pelo indexador. Magnet só com
+            # infohash pode depender exclusivamente de DHT e atrasar metadata.
+            "url": "magnet:?" + urlencode(
+                [("xt", "urn:btih:" + infohash), ("dn", title)]
+                + [("tr", tracker) for tracker in _trackers(row)]),
         }
         if file_index is not None:
             source["file_index"] = file_index
