@@ -18,9 +18,12 @@ PER_PAGE = 20
 ALL_CATEGORIES = (
     ("movies_new", "Lançamentos de {year}"),
     ("movies_prev", "Filmes de {prev_year}"),
+    ("movies_prev2", "Filmes de {prev2_year}"),
     ("movies_popular", "Filmes em alta"),
     ("movies_best_rated", "Mais bem avaliados no IMDb"),
     ("series_new", "Séries de {year}"),
+    ("series_prev", "Séries de {prev_year}"),
+    ("series_prev2", "Séries de {prev2_year}"),
     ("series_popular", "Séries em alta"),
     ("series_best_rated", "Mais bem avaliadas no IMDb"),
 )
@@ -41,6 +44,10 @@ GENRE_CATEGORIES = (
     ("movies_genre_romance", "Romance"),
     ("movies_genre_scifi", "Ficção científica"),
     ("movies_genre_thriller", "Suspense"),
+    ("movies_genre_history", "História"),
+    ("movies_genre_war", "Guerra"),
+    ("movies_genre_western", "Faroeste"),
+    ("movies_genre_music", "Música"),
     ("series_genre_action", "Ação"),
     ("series_genre_adventure", "Aventura"),
     ("series_genre_animation", "Animação"),
@@ -52,6 +59,9 @@ GENRE_CATEGORIES = (
     ("series_genre_mystery", "Mistério"),
     ("series_genre_scifi", "Ficção científica"),
     ("series_genre_thriller", "Suspense"),
+    ("series_genre_history", "História"),
+    ("series_genre_war", "Guerra"),
+    ("series_genre_western", "Faroeste"),
     ("series_genre_reality", "Reality shows"),
 )
 GENRE_CODES = {
@@ -59,6 +69,7 @@ GENRE_CODES = {
     "comedy":"Comedy", "crime":"Crime", "documentary":"Documentary",
     "drama":"Drama", "family":"Family", "fantasy":"Fantasy",
     "horror":"Horror", "mystery":"Mystery", "romance":"Romance",
+    "history":"History", "war":"War", "western":"Western", "music":"Music",
     "scifi":"Sci-Fi", "thriller":"Thriller", "reality":"Reality-TV",
 }
 
@@ -111,6 +122,8 @@ def _parts(category, year=None, query=None):
         return media, "year", "genre={}".format(year)
     if suffix == "prev":
         return media, "year", "genre={}".format(year - 1)
+    if suffix == "prev2":
+        return media, "year", "genre={}".format(year - 2)
     if suffix == "popular":
         return media, "top", ""
     if suffix == "best_rated":

@@ -74,12 +74,32 @@ class PluginTests(unittest.TestCase):
             def openSettings(self):
                 calls["settings"] += 1
 
+        class FakeVideoInfoTag:
+            def __init__(self):
+                self.data = {}
+            def setPlot(self, value):
+                self.data["plot"] = value
+            def setPlotOutline(self, value):
+                self.data["plotoutline"] = value
+            def setTitle(self, value):
+                self.data["title"] = value
+            def setMediaType(self, value):
+                self.data["mediatype"] = value
+            def setYear(self, value):
+                self.data["year"] = value
+            def setIMDBNumber(self, value):
+                self.data["imdbnumber"] = value
+
         class ListItem:
             def __init__(self, label="", path=""):
                 self.label, self.path = label, path
                 self.properties = {}
                 self.art = {}
                 self.info = {}
+                self.video_tag = FakeVideoInfoTag()
+
+            def getVideoInfoTag(self):
+                return self.video_tag
 
             def setProperty(self, key, val):
                 self.properties[key] = val
@@ -130,9 +150,12 @@ class PluginTests(unittest.TestCase):
         recent_stub.CATEGORIES = (
             ("movies_new", "Filmes de {year}"),
             ("movies_prev", "Filmes de {prev_year}"),
+            ("movies_prev2", "Filmes de {prev2_year}"),
             ("movies_popular", "Filmes em alta"),
             ("movies_rating", "Mais bem avaliados (IMDb)"),
             ("series_new", "Séries de {year}"),
+            ("series_prev", "Séries de {prev_year}"),
+            ("series_prev2", "Séries de {prev2_year}"),
             ("series_popular", "Séries em alta"),
             ("series_rating", "Mais bem avaliadas (IMDb)"),
         )
@@ -196,8 +219,8 @@ class PluginTests(unittest.TestCase):
         movies = self.run_addon("sections", query={"media": "movie"})
         series = self.run_addon("sections", query={"media": "series"})
         tools = self.run_addon("tools")
-        self.assertEqual(len(movies["items"]), 5)
-        self.assertEqual(len(series["items"]), 4)
+        self.assertEqual(len(movies["items"]), 6)
+        self.assertEqual(len(series["items"]), 6)
         self.assertEqual(len(tools["items"]), 5)
         self.assertEqual(movies["items"][-1]["listitem"].label, "Gêneros")
         self.assertEqual(series["items"][-1]["listitem"].label, "Gêneros")
@@ -219,6 +242,14 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["listitem"].info["title"], "Filme recente")
         self.assertEqual(result["items"][0]["listitem"].info["plot"],
                          "Uma história envolvente apresentada em português do Brasil.")
+        self.assertEqual(result["items"][0]["listitem"].info["plotoutline"],
+                         "Uma história envolvente apresentada em português do Brasil.")
+        self.assertEqual(result["items"][0]["listitem"].video_tag.data["plot"],
+                         "Uma história envolvente apresentada em português do Brasil.")
+        self.assertEqual(result["items"][0]["listitem"].video_tag.data["plotoutline"],
+                         "Uma história envolvente apresentada em português do Brasil.")
+        self.assertEqual(result["items"][0]["listitem"].video_tag.data["mediatype"], "movie")
+        self.assertEqual(result["items"][0]["listitem"].video_tag.data["imdbnumber"], "tt1234567")
         self.assertNotIn("Abra o título", result["items"][0]["listitem"].info["plot"])
 
     def test_popup_title_choices_without_new_folder(self):

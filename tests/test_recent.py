@@ -23,6 +23,18 @@ class RecentCatalogTests(unittest.TestCase):
         self.assertEqual(REC._parts("series_new", year=2026),
                          ("series", "year", "genre=2026"))
 
+    def test_additional_years_and_genres(self):
+        self.assertEqual(REC._parts("movies_prev2", year=2026),
+                         ("movie", "year", "genre=2024"))
+        self.assertEqual(REC._parts("series_prev", year=2026),
+                         ("series", "year", "genre=2025"))
+        self.assertEqual(REC._parts("series_prev2", year=2026),
+                         ("series", "year", "genre=2024"))
+        self.assertEqual(REC._parts("movies_genre_western"),
+                         ("movie", "top", "genre=Western"))
+        self.assertEqual(REC._parts("series_genre_history"),
+                         ("series", "top", "genre=History"))
+
     def test_genres_and_ratings_use_supported_cinemeta_catalogs(self):
         self.assertEqual(REC._parts("movies_best_rated"),
                          ("movie", "imdbRating", ""))

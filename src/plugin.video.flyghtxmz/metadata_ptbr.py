@@ -242,8 +242,8 @@ def descriptions_for_catalog(items, now=None, include_titles=False):
         # Uma requisição por título devolve nome PT-BR e sinopse simultaneamente.
         try:
             if include_titles:
-                return _read_ptbr_details(identifier, media, timeout=3)
-            return _read_ptbr_description(identifier, media, timeout=3)
+                return _read_ptbr_details(identifier, media, timeout=5)
+            return _read_ptbr_description(identifier, media, timeout=5)
         except (OSError, TimeoutError, ValueError, TypeError, UnicodeError):
             return {"plot": "", "title": ""} if include_titles else ""
 

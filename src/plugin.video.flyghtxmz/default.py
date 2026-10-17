@@ -38,6 +38,24 @@ def add_item(label, action, playable=False, folder=False, artwork=None, info=Non
         item.setArt(artwork)
     if info:
         item.setInfo("video", info)
+        # O painel de informações do Kodi Omega usa o VideoInfoTag.
+        # Enviar plot e plotoutline evita depender da interpretação do skin.
+        try:
+            tag = item.getVideoInfoTag()
+            plot = info.get("plot") or ""
+            if plot:
+                tag.setPlot(plot)
+                tag.setPlotOutline(info.get("plotoutline") or plot)
+            if info.get("title"):
+                tag.setTitle(info["title"])
+            if info.get("mediatype"):
+                tag.setMediaType(info["mediatype"])
+            if info.get("year"):
+                tag.setYear(int(info["year"]))
+            if info.get("imdbnumber"):
+                tag.setIMDBNumber(info["imdbnumber"])
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
     xbmcplugin.addDirectoryItem(
         handle=HANDLE, url=plugin_url(action, **params), listitem=item, isFolder=folder
     )
@@ -64,7 +82,7 @@ def show_sections(media):
     xbmcplugin.setContent(HANDLE, "videos")
     for category, title in CATEGORIES:
         if category.startswith(prefix):
-            add_item(title.format(year=year, prev_year=year-1), "recent",
+            add_item(title.format(year=year, prev_year=year-1, prev2_year=year-2), "recent",
                      folder=True, category=category)
     add_item("Gêneros", "genres", folder=True, media=media)
     finish()
@@ -117,7 +135,9 @@ def show_recent(category, page=1, term=""):
                     row[2]["id"])
         rendered.sort(key=az)
         for label, plot, movie in rendered:
-            info = {"title": label, "plot": plot}
+            info = {"title": label, "plot": plot, "plotoutline": plot,
+                    "mediatype": "tvshow" if movie["type"] == "series" else "movie",
+                    "imdbnumber": movie["id"]}
             match = re.match(r"^(\d{4})", movie.get("year") or "")
             if match:
                 info["year"] = int(match.group(1))
@@ -421,7 +441,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.4.2",
+        "Felipe Vídeos 1.4.3",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "

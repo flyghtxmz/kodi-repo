@@ -1,4 +1,13 @@
-## Séries: temporadas e episódios exatos (1.4.2)
+## Ajustes de apresentação da versão 1.4.3
+
+- O título exibido é procurado em **português (Brasil)** pelo serviço TMDb localizado. O IMDb ID original continua no link da ficha e da busca de torrents.
+- A sinopse é gravada no **painel de informações da capa** do Kodi em `plot`, `plotoutline` e no `VideoInfoTag` (Kodi Omega), sem criar a opção de sinopse no popup.
+- Há mais categorias por ano (**2024, 2025, 2026**) para filmes e séries, além de História, Guerra e Faroeste, e Música nos filmes. Os anos mudam automaticamente.
+- O cache de tradução evita repetir consultas; a primeira visita a uma página pode levar alguns segundos. Quando uma tradução não está disponível, o título original permanece e uma mensagem em PT-BR substitui a sinopse.
+- A versão da TV Box **precisa ser atualizada para 1.4.3**; mudar somente o código do GitHub não altera o addon que já está instalado.
+- A aparência exata do painel depende do skin do Kodi, mas todos os campos nativos de sinopse são preenchidos.
+
+## Séries: temporadas e episódios exatos (1.4.3)
 
 Ao selecionar uma série, o **popup mostra as temporadas cadastradas** e a
 quantidade de episódios por temporada. A escolha de temporada abre outro
@@ -25,7 +34,7 @@ No Kodi, adicione esse endereço como fonte, instale
 `repository.flyghtxmz-1.0.3.zip` e em **Install from repository**
 selecione **Felipe Vídeos**.
 
-## Felipe Vídeos 1.4.2
+## Felipe Vídeos 1.4.3
 
 **Torrentio direto no Kodi:** a busca de fontes de filmes consulta o Worker e o
 Torrentio em paralelo, pela conexão da própria TV Box. Os resultados aparecem
