@@ -30,7 +30,7 @@ def _cache_path():
             return None
         directory = Path(xbmcvfs.translatePath(profile))
         directory.mkdir(parents=True, exist_ok=True)
-        return directory / "torrentio_sources_cache.json"
+        return directory / "torrentio_sources_v2_cache.json"
     except (ImportError, AttributeError, OSError, ValueError):
         return None
 
@@ -171,7 +171,7 @@ def _trackers(row):
     return trackers
 
 
-def parse_streams(payload):
+def parse_streams(payload, season=None, episode=None):
     if not isinstance(payload, dict) or not isinstance(payload.get("streams"), list):
         raise ValueError("Resposta inesperada do Torrentio.")
     result = {}
@@ -186,6 +186,18 @@ def parse_streams(payload):
             file_index = _file_index(row)
         except ValueError:
             continue
+        if season is not None:
+            # Always select the original file within a series torrent.
+            if file_index is None:
+                continue
+            hints = row.get('behaviorHints')
+            filename = hints.get('filename') if isinstance(hints, dict) else None
+            candidate_name = filename if isinstance(filename, str) else label.splitlines()[0]
+            numbers = re.findall(r'(?i)\bS(\d{1,3})[ ._-]*E(\d{1,4})(?!\d)', candidate_name)
+            numbers += re.findall(r'(?i)\b(\d{1,3})x(\d{1,4})(?!\d)', candidate_name)
+            # A contradictory episode label is unsafe even with a file index.
+            if numbers and (season, episode) not in {(int(a), int(b)) for a, b in numbers}:
+                continue
         # Sem índice não é possível escolher com segurança um filme de um pacote.
         if file_index is None and re.search(r"\b(?:trilogia|trilogy|collection|coleção|pack|todos os filmes)\b", label, re.I):
             continue
@@ -241,7 +253,7 @@ def list_sources(title, year="", imdb="", season=None, episode=None):
             if total > MAX_RESPONSE_BYTES:
                 raise ValueError("Resposta do Torrentio excedeu o limite.")
             parts.append(chunk)
-        sources = parse_streams(json.loads(b"".join(parts).decode("utf-8")))
+        sources = parse_streams(json.loads(b"".join(parts).decode("utf-8")), season=season, episode=episode)
     cache[stream_id] = {"at": time.time(), "sources": sources}
     _write_cache(cache)
     return sources

@@ -157,6 +157,32 @@ class TorrentioTests(unittest.TestCase):
                 self.assertEqual(sorted(stored), [
                     "tt0944947:1:1", "tt0944947:1:3", "tt0944947:2:8"])
 
+    def test_episode_rejects_wrong_filename_and_missing_file_index(self):
+        rows = [stream(fileIdx=None),
+                stream(fileIdx=1, behaviorHints={'filename': 'Show.S02E07.mkv'}),
+                stream(fileIdx=2, behaviorHints={'filename': 'Show.S02E08.mkv'}),
+                stream(fileIdx=3, title='Show S01E08'),
+                stream(fileIdx=4, behaviorHints={'filename': 'Show.2x08.mkv'})]
+        found = self.torrentio.parse_streams({'streams': rows}, season=2, episode=8)
+        self.assertEqual([x['file_index'] for x in found], [2, 4])
+
+    def test_partial_sources_return_before_slow_provider(self):
+        import time
+        item = self.torrentio.parse_streams({'streams': [stream()]})[0]
+        release = threading.Event()
+        def slow(*args, **kwargs):
+            release.wait(1)
+            return []
+        try:
+            with patch.object(self.cloudflare, 'list_sources', side_effect=slow), patch.object(
+                    self.torrentio, 'list_sources', return_value=[item]):
+                started = time.monotonic()
+                found = self.sources.list_sources('Film', imdb='tt1254207', deadline=0.05)
+                self.assertLess(time.monotonic() - started, 0.5)
+                self.assertEqual(found, [item])
+        finally:
+            release.set()
+
     def test_episode_lookup_skips_movie_worker(self):
         with patch.object(self.cloudflare, "list_sources") as worker, \
                 patch.object(self.torrentio, "list_sources",

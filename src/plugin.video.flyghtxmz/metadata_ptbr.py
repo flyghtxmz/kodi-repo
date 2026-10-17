@@ -5,7 +5,7 @@ somente para tradução da descrição: a nota IMDb continua vindo do Cinemeta.
 """
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 import re
 import tempfile
@@ -247,10 +247,15 @@ def descriptions_for_catalog(items, now=None, include_titles=False):
         except (OSError, TimeoutError, ValueError, TypeError, UnicodeError):
             return {"plot": "", "title": ""} if include_titles else ""
 
-    with ThreadPoolExecutor(max_workers=min(8, len(pending))) as executor:
-        jobs = {executor.submit(fetch_one, identifier, media): key
-                for key, identifier, media in pending}
-        for job in as_completed(jobs):
+    executor = ThreadPoolExecutor(max_workers=min(8, len(pending)))
+    jobs = {executor.submit(fetch_one, identifier, media): key
+            for key, identifier, media in pending}
+    try:
+        done, unfinished = wait(jobs, timeout=4)
+        for job in unfinished:
+            job.cancel()
+        # Unfinished entries are not marked failed for 24 hours: retry next visit.
+        for job in done:
             key = jobs[job]
             entry = cache.get(key)
             if not isinstance(entry, dict):
@@ -278,6 +283,8 @@ def descriptions_for_catalog(items, now=None, include_titles=False):
             elif description:
                 plots[key] = description
             cache[key] = entry
+    finally:
+        executor.shutdown(wait=False)
     _write_cache(cache)
     return plots
 

@@ -1,6 +1,7 @@
 """Combina fontes do Worker e do Torrentio direto, sem depender de uma só origem."""
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 import logging
+import time
 
 import cloudflare_client
 import torrentio_client
@@ -44,7 +45,7 @@ def merge_sources(groups):
     return result[:100]
 
 
-def list_sources(title, year="", imdb="", season=None, episode=None):
+def list_sources(title, year="", imdb="", season=None, episode=None, cancel=None, deadline=12):
     if not isinstance(title, str) or not title.strip():
         raise ValueError("O título não está disponível.")
     if imdb and (not isinstance(imdb, str) or not cloudflare_client.IMDB_ID.fullmatch(imdb)):
@@ -60,17 +61,29 @@ def list_sources(title, year="", imdb="", season=None, episode=None):
             title, year=year, imdb=imdb, season=season, episode=episode)
         return merge_sources([result])
     groups, failures = [], []
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        jobs = {pool.submit(client.list_sources, title, year=year, imdb=imdb): name
-                for name, client in (("Cloudflare", cloudflare_client), ("Torrentio", torrentio_client))
-                if imdb or name == "Cloudflare"}
-        for job in as_completed(jobs):
-            try:
-                groups.append(job.result())
-            except Exception as error:
-                failures.append(jobs[job])
-                logging.getLogger(__name__).warning("Fonte %s indisponível (%s)", jobs[job], type(error).__name__)
-    result = merge_sources(groups)
-    if not result and len(failures) == len(jobs):
-        raise ValueError("Não foi possível consultar Cloudflare/Torrentio.")
-    return result
+    pool = ThreadPoolExecutor(max_workers=2)
+    jobs = {pool.submit(client.list_sources, title, year=year, imdb=imdb): name
+            for name, client in (("Cloudflare", cloudflare_client), ("Torrentio", torrentio_client))
+            if imdb or name == "Cloudflare"}
+    pending = set(jobs)
+    expires = time.monotonic() + deadline
+    try:
+        while pending and time.monotonic() < expires:
+            if cancel and cancel():
+                return []
+            done, pending = wait(pending, timeout=min(0.1, max(0, expires-time.monotonic())),
+                                 return_when=FIRST_COMPLETED)
+            for job in done:
+                try:
+                    groups.append(job.result())
+                except Exception as error:
+                    failures.append(jobs[job])
+                    logging.getLogger(__name__).warning("Fonte %s indisponível (%s)", jobs[job], type(error).__name__)
+        result = merge_sources(groups)
+        if not result and (pending or len(failures) == len(jobs)):
+            raise ValueError("Não foi possível consultar Cloudflare/Torrentio no prazo.")
+        return result
+    finally:
+        for job in pending:
+            job.cancel()
+        pool.shutdown(wait=False)

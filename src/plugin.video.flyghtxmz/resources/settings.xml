@@ -9,5 +9,31 @@
                 </setting>
             </group>
         </category>
+        <category id="catalog" label="Catálogo e fontes">
+            <group id="2">
+                <setting id="catalog_sort" type="string" label="Ordenação dentro de cada página">
+                    <default>name</default>
+                    <constraints><options>
+                        <option label="Nome (A–Z)">name</option>
+                        <option label="Ordem do catálogo / relevância">relevance</option>
+                        <option label="Ano (mais recente)">year</option>
+                        <option label="Nota IMDb">rating</option>
+                    </options></constraints>
+                    <control type="spinner" format="string"/>
+                </setting>
+                <setting id="max_quality" type="string" label="Resolução máxima das fontes">
+                    <default>any</default>
+                    <constraints><options>
+                        <option label="Todas">any</option>
+                        <option label="Até 1080p">1080p</option>
+                        <option label="Até 720p">720p</option>
+                    </options></constraints>
+                    <control type="spinner" format="string"/>
+                </setting>
+                <setting id="portuguese_only" type="boolean" label="Somente fontes marcadas em português">
+                    <default>false</default><control type="toggle"/>
+                </setting>
+            </group>
+        </category>
     </section>
 </settings>

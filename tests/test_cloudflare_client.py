@@ -88,6 +88,14 @@ class CloudflareClientTests(unittest.TestCase):
         self.assertNotIn("Authorization", seen["headers"])
         self.assertEqual(seen["params"]["imdb"], "tt1254207")
 
+    def test_cloudflare_preserves_distinct_file_indices(self):
+        base = {'title': 'Pack', 'url': 'magnet:?xt=urn:btih:' + 'a'*40}
+        rows = [dict(base, fileIdx=0), dict(base, fileIdx=3),
+                dict(base, fileIdx=True), dict(base, fileIdx=-1), base]
+        with patch.object(self.requests, 'get', return_value=FakeResponse({'sources': rows})):
+            found = self.client.list_sources('Film')
+        self.assertEqual({x['file_index'] for x in found}, {0, 3})
+
     def test_pt_br_quality_priority(self):
         items = [
             {"title": "Original", "source": "P1", "quality": "4K",

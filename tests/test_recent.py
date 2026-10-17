@@ -172,6 +172,25 @@ class RecentCatalogTests(unittest.TestCase):
         self.assertEqual([item["episode"] for item in result["episodes"][3]], [5, 7])
         self.assertEqual(result["episodes"][3][1]["id"], identity + ":3:7")
 
+    def test_rejects_wrong_detail_identity_and_media(self):
+        for meta in ({'id': 'tt1234568', 'type': 'movie', 'name': 'Wrong'},
+                     {'id': 'tt1234567', 'type': 'series', 'name': 'Wrong'}):
+            with patch.object(REC, 'fetch', return_value={'meta': meta}):
+                with self.assertRaises(ValueError):
+                    REC.detail('tt1234567', 'movie')
+
+    def test_segmentation_rejects_mixed_types_and_wrong_year(self):
+        rows = [
+            {'id': 'tt1234501', 'type': 'movie', 'name': 'Correct', 'year': 2020},
+            {'id': 'tt1234502', 'type': 'series', 'name': 'Series', 'year': 2020},
+            {'id': 'tt1234503', 'type': 'movie', 'name': 'Wrong year', 'year': 2019},
+        ]
+        with patch.object(REC, 'fetch', return_value={'metas': rows + rows}):
+            found, more = REC.list_titles('movies_year_2020')
+        self.assertEqual([x['id'] for x in found], ['tt1234501'])
+        with self.assertRaises(ValueError):
+            REC._parts('movies_year_3000')
+
     def test_justwatch_search_uses_title(self):
         url = REC.justwatch_search_url("Um Sonho de Liberdade")
         self.assertEqual(urlsplit(url).hostname, "www.justwatch.com")
