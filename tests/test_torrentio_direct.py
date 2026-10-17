@@ -98,6 +98,51 @@ class TorrentioTests(unittest.TestCase):
         self.assertFalse(get.call_args.kwargs["allow_redirects"])
         self.assertEqual(get.call_args.kwargs["timeout"], (4, 8))
 
+    def test_series_request_uses_exact_episode_identifier(self):
+        with patch.object(self.requests, "get",
+                          return_value=Response({"streams": [stream()]})) as get:
+            results = self.torrentio.list_sources(
+                "Game of Thrones", imdb="tt0944947", season=2, episode=8)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(get.call_args.args[0],
+            "https://torrentio.strem.fun/brazuca/stream/series/tt0944947:2:8.json")
+
+    def test_series_requests_cache_each_episode_separately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cache.json"
+            with patch.object(self.torrentio, "_cache_path", return_value=path), \
+                    patch.object(self.requests, "get",
+                                 return_value=Response({"streams": [stream()]})) as get:
+                for season, episode in ((1, 1), (1, 3), (1, 1), (2, 8)):
+                    self.torrentio.list_sources(
+                        "Game of Thrones", imdb="tt0944947",
+                        season=season, episode=episode)
+                self.assertEqual(get.call_count, 3)
+                stored = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(sorted(stored), [
+                    "tt0944947:1:1", "tt0944947:1:3", "tt0944947:2:8"])
+
+    def test_episode_lookup_skips_movie_worker(self):
+        with patch.object(self.cloudflare, "list_sources") as worker, \
+                patch.object(self.torrentio, "list_sources",
+                             return_value=[self.torrentio.parse_streams(
+                                 {"streams": [stream()]})[0]]) as torrent:
+            result = self.sources.list_sources(
+                "Game of Thrones", imdb="tt0944947", season=2, episode=8)
+        worker.assert_not_called()
+        self.assertEqual(torrent.call_args.kwargs["season"], 2)
+        self.assertEqual(torrent.call_args.kwargs["episode"], 8)
+        self.assertEqual(len(result), 1)
+
+    def test_episode_numbers_must_be_valid(self):
+        for season, episode in ((None, 1), (1, None), (-1, 1),
+                                (1, 0), (True, 2), (2, True), (1000, 1)):
+            with self.subTest(season=season, episode=episode):
+                with self.assertRaises(ValueError):
+                    self.sources.list_sources(
+                        "Game of Thrones", imdb="tt0944947",
+                        season=season, episode=episode)
+
     def test_invalid_imdb_never_causes_a_request(self):
         with patch.object(self.requests, "get") as get:
             self.assertEqual(self.torrentio.list_sources("Filme"), [])
