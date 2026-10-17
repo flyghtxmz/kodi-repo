@@ -257,7 +257,16 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None)
         index = xbmcgui.Dialog().select("Selecionar fonte — {}".format(target), labels)
         if index is None or index < 0 or index >= len(sources):
             return
-        start_cloudflare_play(sources[index]["url"], file_index=sources[index].get("file_index"))
+        selected = sources[index]
+        # Se o provedor confirma ausência de seeders, oferecer escolha:
+        # peers desconhecidos não são necessariamente zero.
+        if selected.get("seeders") == 0:
+            if not xbmcgui.Dialog().yesno(
+                    "Fonte sem seeders",
+                    "O provedor informou 0 seeders. A reprodução pode demorar "
+                    "ou não iniciar. Deseja tentar mesmo assim?"):
+                return
+        start_cloudflare_play(selected["url"], file_index=selected.get("file_index"))
     except Exception as error:
         xbmc.log("Felipe Vídeos: consulta de fontes falhou ({})".format(
             type(error).__name__), xbmc.LOGERROR)
@@ -281,6 +290,8 @@ def start_cloudflare_play(url, file_index=None):
     if elementum_addon() is None:
         missing_elementum()
         return
+    # O início de buffering é gerenciado pelo Elementum. Não repita
+    # automaticamente este comando: o Kodi pode ainda estar iniciando-o.
     xbmc.executebuiltin("PlayMedia({})".format(build_elementum_url(url, file_index=file_index)))
 
 
