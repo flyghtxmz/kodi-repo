@@ -36,11 +36,21 @@ def merge_sources(groups):
     return result[:100]
 
 
-def list_sources(title, year="", imdb=""):
+def list_sources(title, year="", imdb="", season=None, episode=None):
     if not isinstance(title, str) or not title.strip():
         raise ValueError("O título não está disponível.")
     if imdb and (not isinstance(imdb, str) or not cloudflare_client.IMDB_ID.fullmatch(imdb)):
         raise ValueError("Identificador IMDb incorreto.")
+    # Séries são pesquisadas por episódio individual. Não enviamos a
+    # pesquisa ao Worker legado (que aceita só título de filme): ele
+    # poderia responder com uma fonte da série inteira/episódio errado.
+    if season is not None or episode is not None:
+        if (type(season) is not int or type(episode) is not int or
+                not 0 <= season <= 999 or not 1 <= episode <= 9999 or not imdb):
+            raise ValueError("Temporada ou episódio inválido.")
+        result = torrentio_client.list_sources(
+            title, year=year, imdb=imdb, season=season, episode=episode)
+        return merge_sources([result])
     groups, failures = [], []
     with ThreadPoolExecutor(max_workers=2) as pool:
         jobs = {pool.submit(client.list_sources, title, year=year, imdb=imdb): name
