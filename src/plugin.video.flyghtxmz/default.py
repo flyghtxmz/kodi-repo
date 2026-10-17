@@ -214,8 +214,11 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None)
     """Exibe popup de fontes e entrega a escolhida ao Elementum."""
     from source_client import list_sources
     try:
-        sources = list_sources(title, year=year, imdb=imdb,
-                               season=season, episode=episode)
+        if season is not None:
+            sources = list_sources(title, year=year, imdb=imdb,
+                                   season=season, episode=episode)
+        else:
+            sources = list_sources(title, year=year, imdb=imdb)
         if not sources:
             xbmcgui.Dialog().ok(
                 "Nenhuma fonte disponível",
