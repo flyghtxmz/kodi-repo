@@ -141,7 +141,16 @@ def show_recent_detail(identifier, media):
     finish()
     try:
         movie = detail(identifier, media=media)
-        options = [("Buscar fontes", "sources")]
+        # Para séries, o primeiro popup lista as temporadas oficiais
+        # (sem pasta intermediária). Filmes continuam com Buscar fontes.
+        episodes = movie.get("episodes") or {} if media == "series" else {}
+        options = []
+        if media == "series":
+            for season, entries in sorted(episodes.items()):
+                title = "Especiais (S00)" if season == 0 else "Temporada {}".format(season)
+                options.append(("{} — {} episódio(s)".format(title, len(entries)), ("season", season)))
+        else:
+            options.append(("Buscar fontes", "sources"))
         if movie.get("trailer_id"):
             options.append(("Ver trailer", "recent_trailer"))
         options.append(("Onde assistir no Brasil", "recent_where"))
@@ -149,11 +158,17 @@ def show_recent_detail(identifier, media):
         rating_label = rating + "/10" if rating != "Indisponível" else rating
         heading = "{} ({}) | IMDb: {}".format(
             movie["title"], movie.get("year") or "s/ ano", rating_label)
+        if not options:
+            xbmcgui.Dialog().ok("Episódios indisponíveis",
+                                "Não há temporadas ou episódios cadastrados para esta série.")
+            return
         index = xbmcgui.Dialog().select(heading, [label for label, _ in options])
         if index is None or index < 0 or index >= len(options):
             return
         action = options[index][1]
-        if action == "sources":
+        if isinstance(action, tuple) and action[0] == "season":
+            choose_series_episode(movie, action[1])
+        elif action == "sources":
             # O ID TMDb não é um identificador IMDb: evite enviá-lo ao Worker.
             choose_cloudflare_source(movie.get("original_title") or movie["title"],
                                      str(movie.get("year") or "")[:4],
@@ -167,11 +182,40 @@ def show_recent_detail(identifier, media):
         xbmcgui.Dialog().ok("Detalhes indisponíveis", "Não foi possível abrir as opções deste título.")
 
 
-def choose_cloudflare_source(title, year="", imdb=""):
+def choose_series_episode(movie, season):
+    """Popup de episódios numerados conforme Cinemeta: S01E01, S01E02, etc."""
+    episodes = (movie.get("episodes") or {}).get(season) or []
+    if not episodes:
+        xbmcgui.Dialog().ok("Episódios indisponíveis",
+                            "Não há episódios cadastrados para esta temporada.")
+        return
+    options = [
+        "S{:02d}E{:02d} — {}".format(season, item["episode"], item["title"])
+        for item in episodes
+    ]
+    series_name = movie.get("title") or "Série"
+    label = "Especiais" if season == 0 else "Temporada {}".format(season)
+    choice = xbmcgui.Dialog().select("{} — {}".format(series_name, label), options)
+    if choice is None or choice < 0 or choice >= len(episodes):
+        return
+    selected = episodes[choice]
+    imdb = movie.get("imdb_id") or movie.get("id") or ""
+    if not re.fullmatch(r"tt[0-9]{5,12}", imdb):
+        xbmcgui.Dialog().ok("Identificador inválido",
+                            "IMDb ID da série indisponível para buscar este episódio.")
+        return
+    choose_cloudflare_source(
+        movie.get("original_title") or series_name,
+        str(movie.get("year") or "")[:4],
+        imdb, season=season, episode=selected["episode"])
+
+
+def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None):
     """Exibe popup de fontes e entrega a escolhida ao Elementum."""
     from source_client import list_sources
     try:
-        sources = list_sources(title, year=year, imdb=imdb)
+        sources = list_sources(title, year=year, imdb=imdb,
+                               season=season, episode=episode)
         if not sources:
             xbmcgui.Dialog().ok(
                 "Nenhuma fonte disponível",
@@ -185,7 +229,8 @@ def choose_cloudflare_source(title, year="", imdb=""):
             labels.append("{} | {} | {} | {} | Seeds: {} | Áudio: {}".format(
                 source["title"], source["source"], source["quality"],
                 size_text, seed_text, language))
-        index = xbmcgui.Dialog().select("Selecionar fonte — {}".format(title), labels)
+        target = "{} S{:02d}E{:02d}".format(title, season, episode) if season is not None else title
+        index = xbmcgui.Dialog().select("Selecionar fonte — {}".format(target), labels)
         if index is None or index < 0 or index >= len(sources):
             return
         start_cloudflare_play(sources[index]["url"], file_index=sources[index].get("file_index"))
