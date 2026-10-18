@@ -242,6 +242,36 @@ class TorrentioTests(unittest.TestCase):
                 primary.assert_called_once()
                 worker.assert_called_once()
 
+    def test_dubbed_audio_marked_from_description_filename_and_language_fields(self):
+        rows = [
+            stream(infoHash="f" * 40, title="Título original", name="Torrentio",
+                   description="Português Brasileiro Dublado"),
+            stream(infoHash="e" * 40, title="Título original", name="Torrentio",
+                   behaviorHints={"filename": "Nome.2026.PT.BR.1080p.mkv"}),
+            stream(infoHash="d" * 40, title="Título original", name="Torrentio",
+                   languages=["Brazilian Portuguese"]),
+            stream(infoHash="c" * 40, title="Título original", name="Torrentio",
+                   description="English", sources=["MicoLeaoDublado"]),
+        ]
+        found = self.torrentio.parse_streams({"streams": rows})
+        self.assertEqual([source["language"] for source in found],
+                         ["pt-br", "pt-br", "pt-br", "en"])
+
+    def test_quick_lookup_without_ptbr_queries_other_providers(self):
+        item_unknown = self.torrentio.parse_streams({
+            "streams": [stream(infoHash="a"*40, title="Filme 1080p sem legenda", name="Torrentio")]})[0]
+        item_brazil = self.torrentio.parse_streams({
+            "streams": [stream(infoHash="b"*40, title="Filme Dublado", name="Torrentio")]})[0]
+        with patch.object(self.torrentio, "list_sources", return_value=[item_unknown]) as primary, \
+                patch.object(self.cloudflare, "list_sources", return_value=[item_brazil]) as worker, \
+                patch.object(self.mediafusion, "list_sources", return_value=[]), \
+                patch.object(self.comet, "list_sources", return_value=[]):
+            found = self.sources.list_sources("Filme", imdb="tt1254207", quick=True)
+        self.assertEqual(found[0]["language"], "pt-br")
+        self.assertEqual(len(found), 2)
+        primary.assert_called_once()
+        worker.assert_called_once()
+
     def test_sources_are_fetched_in_parallel(self):
         barrier = threading.Barrier(2)
         item = self.torrentio.parse_streams({"streams": [stream()]})[0]
