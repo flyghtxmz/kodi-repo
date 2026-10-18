@@ -88,12 +88,22 @@ def list_sources(title, year="", imdb="", season=None, episode=None, quick=False
     # compatíveis. Em caso de erro/resultado vazio, recorre aos demais.
     # A pesquisa completa continua disponível explicitamente no popup.
     primary_ok = False
+    primary = []
     if quick and imdb:
         try:
             primary = torrentio_client.list_sources(title, **options)
             primary_ok = True
-            if primary:
+            # Se a busca rápida retornar só áudio desconhecido/original, não
+            # considere o resultado completo: procurar PT-BR nas outras fontes.
+            if any(_priority(item)[0] >= 3 for item in primary):
+                logging.getLogger(__name__).info(
+                    "Torrentio com fonte PT-BR declarada: %d resultados", len(primary))
                 return merge_sources([primary])
+            if primary:
+                groups.append(primary)
+            logging.getLogger(__name__).info(
+                "Torrentio rápido sem PT-BR declarado (%d fontes); consultando outros provedores",
+                len(primary))
         except Exception as error:
             logging.getLogger(__name__).warning(
                 "Consulta rápida Torrentio indisponível (%s)", type(error).__name__)
