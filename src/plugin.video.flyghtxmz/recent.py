@@ -213,17 +213,33 @@ def detail(identifier, media="movie"):
     identifier = validate_id(identifier)
     if media not in ("movie", "series"):
         raise ValueError("Tipo de catálogo inválido.")
+    # Evita repetir a leitura da mesma ficha a cada popup. A nota IMDb é
+    # controlada separadamente pelo cache de 24h em metadata_ptbr.enrich().
+    key = media + ":" + identifier
     try:
-        payload = fetch(BASE + "/meta/{}/{}.json".format(media, identifier))
-        meta = (payload.get("meta") or {}) if isinstance(payload, dict) else {}
-    except (OSError, ValueError, TypeError):
-        meta = {}
-    if not normalize(meta, media):
+        import local_cache
+        cached = local_cache.get("title_details", key)
+    except (ImportError, OSError, ValueError, TypeError):
+        local_cache = None
+        cached = None
+    meta = cached if isinstance(cached, dict) and normalize(cached, media) else None
+    if meta is None:
         try:
-            from discovery import metadata
-            meta = metadata(identifier, media)
-        except (ImportError, OSError, ValueError, TypeError):
-            raise ValueError("Detalhes indisponíveis.")
+            payload = fetch(BASE + "/meta/{}/{}.json".format(media, identifier))
+            meta = (payload.get("meta") or {}) if isinstance(payload, dict) else {}
+        except (OSError, ValueError, TypeError):
+            meta = {}
+        if not normalize(meta, media):
+            try:
+                from discovery import metadata
+                meta = metadata(identifier, media)
+            except (ImportError, OSError, ValueError, TypeError):
+                raise ValueError("Detalhes indisponíveis.")
+        if local_cache is not None and normalize(meta, media):
+            try:
+                local_cache.put("title_details", key, meta, ttl=900, max_entries=16)
+            except (OSError, ValueError, TypeError):
+                pass
     value = normalize(meta, media)
     if not value:
         raise ValueError("Detalhes indisponíveis.")
