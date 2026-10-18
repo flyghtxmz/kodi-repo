@@ -258,3 +258,23 @@ reais, disponibilidade de peers, armazenamento e configuração de buffer.
 
 O addon não garante que um torrent listado seja reproduzível. A origem do
 problema só pode ser comprovada no Kodi/TV Box, não pelos testes no GitHub.
+
+## Velocidade de abertura — 1.5.2
+
+- A busca inicial no seletor de fontes usa o Torrentio primeiro. Havendo resultados,
+  o popup abre sem aguardar Cloudflare, MediaFusion ou Comet.
+- A última opção do popup, **Pesquisar também Cloudflare, MediaFusion e Comet**,
+  faz a pesquisa completa sob demanda. Quando o Torrentio falha ou não encontra
+  fontes, os outros provedores são consultados automaticamente.
+- Fichas Cinemeta validadas são guardadas por **15 minutos**, acelerando reaberturas
+  do mesmo filme/série. O cache separado da nota IMDb continua com **24 horas**.
+- O log do Kodi registra a duração da ficha, a duração da busca de fontes e a
+  confirmação do `Player.Open`. Em **Ferramentas → Diagnóstico de conexão**,
+  os últimos trechos relevantes são exibidos sem URLs dos torrents.
+- Um `Player.Open` aceito significa que o Kodi recebeu o comando; **não** prova
+  que o torrent encontrou peers, baixou metadados ou completou o buffer.
+  Esses fatores dependem do Elementum, da fonte, do armazenamento e da rede.
+- Para diagnosticar demora **depois de selecionar** a fonte, use
+  **Ferramentas → Testar Elementum**, confira seeders reais e consulte o log
+  do Kodi/Elementum. Não aumentamos automaticamente buffer, não repetimos
+  tentativas e não alteramos configurações de rede da TV Box.
