@@ -105,11 +105,30 @@ def _size(value):
 
 
 def _language(label):
-    if "🇧🇷" in label or re.search(r"\b(?:pt[-_ ]?br|brazilian|dublad[oa])\b", label, re.I):
+    """Lê marcas explícitas do arquivo, sem deduzir idioma só pelo indexador.
+
+    Um provedor brasileiro pode publicar áudio original. Isso é um indicativo
+    textual, não uma análise real da faixa de áudio do arquivo.
+    """
+    if not isinstance(label, str):
+        return "unknown"
+    normalized = label.casefold()
+    explicit_br = (
+        "🇧🇷" in label or
+        re.search(r"(?<![a-z0-9])(?:pt[. _-]?br|br[. _-]?pt|ptbr|brazilian"
+                  r"|portugu[eê]s(?:[ ._-]+do)?[ ._-]+brasil(?:eiro)?"
+                  r"|brasil(?:eiro)?[ ._-]+portugu[eê]s"
+                  r"|audio[ ._-]+br|áudio[ ._-]+br"
+                  r"|dublad[oa]s?|dub[ ._-]?pt[ ._-]?br)(?![a-z0-9])",
+                  normalized, re.I)
+    )
+    if explicit_br:
         return "pt-br"
-    if "🇵🇹" in label or re.search(r"\bportugu[eê]s\b", label, re.I):
+    if ("🇵🇹" in label or
+            re.search(r"(?<![a-z0-9])(?:portugu[eê]s|portuguese|pt[. _-]?pt)(?![a-z0-9])",
+                      normalized, re.I)):
         return "pt"
-    if "🇬🇧" in label:
+    if "🇬🇧" in label or re.search(r"(?<![a-z0-9])english(?![a-z0-9])", normalized):
         return "en"
     return "unknown"
 
@@ -190,6 +209,21 @@ def parse_streams(payload):
         if file_index is None and re.search(r"\b(?:trilogia|trilogy|collection|coleção|pack|todos os filmes)\b", label, re.I):
             continue
         title = re.sub(r"[\x00-\x1f\x7f]", " ", label.splitlines()[0]).strip()[:180]
+        # A língua pode estar na descrição, no nome Stremio, no filename ou
+        # no campo explícito languages. Nunca inferir só do nome do provedor.
+        hints = row.get("behaviorHints") if isinstance(row.get("behaviorHints"), dict) else {}
+        languages = row.get("languages")
+        language_data = " ".join(str(v) for v in languages[:8]) if isinstance(languages, list) else ""
+        language_text = " ".join((label, str(row.get("description") or ""),
+                                  str(hints.get("filename") or ""), language_data))
+        detected_language = _language(language_text)
+        if detected_language == "unknown" and isinstance(row.get("name"), str):
+            # "name" costuma ser "Torrentio\n1080p" e pode indicar idioma.
+            # Ignorar identificadores de provedores para não criar falsos PT-BR.
+            name_text = row["name"]
+            for provider_name in ("MicoLeaoDublado", "Comando", "BluDV"):
+                name_text = name_text.replace(provider_name, "")
+            detected_language = _language(name_text)
         origin = re.search(r"⚙\ufe0f?\s*([^\r\n]+)", label)
         provider = "Torrentio" + (" / " + origin[1].strip()[:60] if origin else "")
         seed_count = re.search(r"👤\s*(\d+)", label)
@@ -197,7 +231,7 @@ def parse_streams(payload):
             "title": title, "source": provider,
             "quality": _quality(str(row.get("name") or "") + " " + title),
             "size": _size(label), "seeders": int(seed_count[1]) if seed_count else None,
-            "language": _language(label), "infoHash": infohash,
+            "language": detected_language, "infoHash": infohash,
             # Inclui os trackers devolvidos pelo indexador. Magnet só com
             # infohash pode depender exclusivamente de DHT e atrasar metadata.
             "url": "magnet:?" + urlencode(
