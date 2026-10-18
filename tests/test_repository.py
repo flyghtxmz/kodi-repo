@@ -55,7 +55,7 @@ class RepositoryTests(unittest.TestCase):
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
 
 class PluginTests(unittest.TestCase):
-    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None, allow_zero_seed=True):
+    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None, allow_zero_seed=True, player_active=False, subtitle_items=None):
         calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": [], "popups": [], "lookups": []}
         choices = list(popup_choices) if popup_choices is not None else [0]
         xbmc = types.ModuleType("xbmc")
@@ -190,7 +190,25 @@ class PluginTests(unittest.TestCase):
         recent_stub.justwatch_search_url = lambda title: "https://www.justwatch.com/br/busca?q=Movie+Recent"
         xbmcaddon.Addon = Addon
         xbmc.executebuiltin = calls["commands"].append
+        calls["subtitle_paths"] = []
+        calls["subtitle_visibility"] = []
+        xbmc.Player = lambda: types.SimpleNamespace(isPlayingVideo=lambda: player_active,
+            getPlayingFile=lambda: "http://elementum.local/video.mkv",
+            setSubtitles=calls["subtitle_paths"].append, showSubtitles=calls["subtitle_visibility"].append)
+        subtitles_stub = types.ModuleType("subtitles_client")
+        subtitles_stub.save_context = lambda *args, **kwargs: None
+        subtitles_stub.list_subtitles = lambda context: subtitle_items or []
+        subtitles_stub.download = lambda row: "/addon/profile/test.srt"
+        cache_stub = types.ModuleType("local_cache")
+        cache_stub.get = lambda *args: {"imdb": "tt1234567", "title": "Filme recente"}
+        discovery_stub = types.ModuleType("discovery")
+        discovery_stub.LANGUAGES = (("Português", "Portuguese"), ("Inglês", "English"))
+        discovery_stub.COUNTRIES = (("Brasil — português", "Brazil", "Portuguese"),)
+        discovery_stub.list_titles = lambda media, kind, value, page=1: ([{
+            "id": "tt1234567", "type": media, "title": "Título localizado", "year": "2002",
+            "plot": "Sinopse em português", "poster": "https://example.org/poster.jpg"}], True)
         xbmcgui.INPUT_ALPHANUM = 0
+        xbmcgui.INPUT_NUMERIC = 1
         xbmcgui.ListItem = ListItem
         xbmcgui.Dialog = Dialog
         xbmcplugin.addDirectoryItem = lambda **kwargs: calls["items"].append(kwargs)
@@ -204,7 +222,8 @@ class PluginTests(unittest.TestCase):
                                       "xbmcplugin": xbmcplugin,
                                       "recent": recent_stub, "cloudflare_client": cloudflare_stub,
                                       "source_client": cloudflare_stub,
-                                      "metadata_ptbr": metadata_stub}):
+                                      "metadata_ptbr": metadata_stub, "subtitles_client": subtitles_stub,
+                                      "local_cache": cache_stub, "discovery": discovery_stub}):
             with patch.object(sys, "argv", argv):
                 runpy.run_path(str(ROOT / "src/plugin.video.flyghtxmz/default.py"), run_name="__main__")
         return calls
@@ -219,15 +238,45 @@ class PluginTests(unittest.TestCase):
         self.assertNotIn("Archive", " ".join(labels))
         self.assertNotIn("demo", " ".join(i["url"] for i in result["items"]))
 
+    def test_explore_menu_and_filter_preserves_pagination(self):
+        result = self.run_addon("explore", query={"media": "movie"})
+        self.assertEqual([x["listitem"].label for x in result["items"]],
+                         ["Escolher ano", "Idioma original", "País e idioma original", "Animes", "Clássicos por década"])
+        page = self.run_addon("recent", query={"category": "movies_popular", "filter_kind": "language", "filter_value": "Portuguese"})
+        self.assertEqual(page["items"][0]["listitem"].label, "Título localizado")
+        self.assertIn("filter_kind=language", page["items"][-1]["url"])
+        self.assertIn("filter_value=Portuguese", page["items"][-1]["url"])
+
+    def test_year_picker_validates_and_opens_the_selected_year(self):
+        result = self.run_addon("choose_filter", query={"media": "movie", "kind": "year"}, magnet_input="1999")
+        self.assertIn("filter_value=1999", result["commands"][0])
+        invalid = self.run_addon("choose_filter", query={"media": "movie", "kind": "year"}, magnet_input="../../")
+        self.assertEqual(invalid["commands"], [])
+        self.assertEqual(invalid["dialogs"][0][0], "Ano inválido")
+
+    def test_subtitle_selection_requires_playback_and_applies_user_choice(self):
+        stopped = self.run_addon("subtitles")
+        self.assertEqual(stopped["subtitle_paths"], [])
+        self.assertIn("Inicie o vídeo", stopped["dialogs"][0][1])
+        played = self.run_addon("subtitles", player_active=True, popup_choices=[0],
+                               subtitle_items=[{"label": "PT-BR | release de teste", "url": "https://subs5.strem.io/file/1"}])
+        self.assertEqual(played["subtitle_paths"], ["/addon/profile/test.srt"])
+        self.assertEqual(played["subtitle_visibility"], [True])
+
+    def test_cancel_subtitles_leaves_playback_unchanged(self):
+        result = self.run_addon("subtitles", player_active=True, popup_choices=[-1],
+                                subtitle_items=[{"label": "PT-BR", "url": "https://subs5.strem.io/file/1"}])
+        self.assertEqual(result["subtitle_paths"], [])
+
     def test_sections_and_tools(self):
         movies = self.run_addon("sections", query={"media": "movie"})
         series = self.run_addon("sections", query={"media": "series"})
         tools = self.run_addon("tools")
-        self.assertEqual(len(movies["items"]), 6)
-        self.assertEqual(len(series["items"]), 6)
-        self.assertEqual(len(tools["items"]), 6)
-        self.assertEqual(movies["items"][-1]["listitem"].label, "Gêneros")
-        self.assertEqual(series["items"][-1]["listitem"].label, "Gêneros")
+        self.assertEqual(len(movies["items"]), 7)
+        self.assertEqual(len(series["items"]), 7)
+        self.assertEqual(len(tools["items"]), 7)
+        self.assertEqual(movies["items"][-1]["listitem"].label, "Explorar catálogo")
+        self.assertEqual(series["items"][-1]["listitem"].label, "Explorar catálogo")
         film_genres = self.run_addon("genres", query={"media": "movie"})
         show_genres = self.run_addon("genres", query={"media": "series"})
         self.assertEqual([x["listitem"].label for x in film_genres["items"]], ["Ação", "Terror"])

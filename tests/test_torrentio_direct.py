@@ -57,7 +57,12 @@ class TorrentioTests(unittest.TestCase):
         with patch.dict(sys.modules, {"requests": requests, "xbmcaddon": addon}):
             cls.torrentio = load("torrentio_client")
             cls.cloudflare = load("cloudflare_client")
-        with patch.dict(sys.modules, {"torrentio_client": cls.torrentio, "cloudflare_client": cls.cloudflare}):
+        cls.mediafusion = types.ModuleType("mediafusion_client")
+        cls.mediafusion.list_sources = lambda *args, **kwargs: []
+        cls.comet = types.ModuleType("comet_client")
+        cls.comet.list_sources = lambda *args, **kwargs: []
+        with patch.dict(sys.modules, {"torrentio_client": cls.torrentio, "cloudflare_client": cls.cloudflare,
+                                     "mediafusion_client": cls.mediafusion, "comet_client": cls.comet}):
             cls.sources = load("source_client")
         cls.requests = requests
 
@@ -225,7 +230,9 @@ class TorrentioTests(unittest.TestCase):
                     patch.object(second, "list_sources", return_value=[item]):
                 self.assertEqual(self.sources.list_sources("Filme", imdb="tt1254207"), [item])
         with patch.object(self.cloudflare, "list_sources", side_effect=OSError("offline")), \
-                patch.object(self.torrentio, "list_sources", side_effect=OSError("offline")):
+                patch.object(self.torrentio, "list_sources", side_effect=OSError("offline")), \
+                patch.object(self.mediafusion, "list_sources", side_effect=OSError("offline")), \
+                patch.object(self.comet, "list_sources", side_effect=OSError("offline")):
             with self.assertRaises(ValueError):
                 self.sources.list_sources("Filme", imdb="tt1254207")
 

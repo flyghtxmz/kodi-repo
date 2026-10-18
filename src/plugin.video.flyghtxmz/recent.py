@@ -213,8 +213,17 @@ def detail(identifier, media="movie"):
     identifier = validate_id(identifier)
     if media not in ("movie", "series"):
         raise ValueError("Tipo de catálogo inválido.")
-    payload = fetch(BASE + "/meta/{}/{}.json".format(media, identifier))
-    meta = payload.get("meta") or {}
+    try:
+        payload = fetch(BASE + "/meta/{}/{}.json".format(media, identifier))
+        meta = (payload.get("meta") or {}) if isinstance(payload, dict) else {}
+    except (OSError, ValueError, TypeError):
+        meta = {}
+    if not normalize(meta, media):
+        try:
+            from discovery import metadata
+            meta = metadata(identifier, media)
+        except (ImportError, OSError, ValueError, TypeError):
+            raise ValueError("Detalhes indisponíveis.")
     value = normalize(meta, media)
     if not value:
         raise ValueError("Detalhes indisponíveis.")

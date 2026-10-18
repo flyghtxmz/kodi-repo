@@ -1,3 +1,48 @@
+## Novas fontes, exploração e legendas (1.5.0)
+
+Atualize **Felipe Vídeos para 1.5.0** pelo repositório do Kodi.
+
+- Filmes combinam o Worker existente, Torrentio, **MediaFusion e Comet**;
+  séries consultam os três provedores diretos pelo IMDb e episódio exatos.
+  Cada provedor falha isoladamente. A seleção mantém até 100 fontes sem
+  duplicatas de hash/arquivo, com prioridade para PT-BR, português e peers
+  informados. Contagens de reprodução não são apresentadas como seeders.
+- Em **Filmes/Séries → Explorar catálogo**, escolha ano, idioma original,
+  país e idioma, ou animes. Filmes também oferecem clássicos por década/ano.
+  O recorte de país combina seu idioma principal com o país confirmado nos
+  metadados; não cobre todas as produções multilíngues de cada país. Animes
+  combinam idioma japonês e animação. Há paginação de 20 entradas de origem;
+  alguns filtros podem apresentar menos itens por página.
+- Novos catálogos usam o TMDb localizado com o IMDb confirmado antes da busca
+  de fontes. Detalhes e episódios têm alternativa ao Cinemeta, preservando
+  IMDb e a numeração real. A nota IMDb não é substituída pela nota TMDb.
+- Quando o Worker não encontra um filme pelo título original, tenta também
+  o nome brasileiro já disponível no cache de tradução, sem alterar ano/IMDb.
+- Durante a reprodução, abra **Ferramentas → Legendas PT-BR do título
+  selecionado**, escolha o arquivo compatível com seu release e volte ao
+  vídeo. A pesquisa no OpenSubtitles via Stremio prioriza PT-BR e inclui PT.
+  Somente a legenda escolhida é baixada e aplicada; sincronização depende
+  do release. A seleção corresponde ao último título iniciado pelo addon.
+
+Os novos provedores e as legendas usam a conexão do Kodi, sem exigir token
+ou conta e sem tráfego adicional no Worker/SQL. MediaFusion e Comet têm cache
+local de cinco minutos; buscas vazias, um minuto. Os novos caches têm limite
+de 2 MB por arquivo; catálogos ficam por uma hora, países por 24 horas,
+e no máximo cinco SRTs são mantidos. A primeira consulta por país pode levar
+alguns segundos para confirmar a origem dos títulos.
+
+As instâncias comunitárias podem ficar indisponíveis. A presença de uma fonte
+não comprova que existam peers acessíveis. A reprodução continua no Elementum,
+preservando `fileIdx` como `oindex` e trackers explicitamente fornecidos.
+
+Referências dos provedores: [MediaFusion](https://github.com/mhdzumair/MediaFusion),
+[Comet](https://github.com/g0ldyy/comet) e
+[OpenSubtitles para Stremio](https://github.com/Stremio/stremio-opensubtitles-v3).
+
+Verificação manual das APIs (metadados; não baixa vídeos):
+`python tools/check_expansion_live.py --download-subtitle`.
+O parâmetro opcional baixa somente um SRT para validar o formato.
+
 ## Ajustes de apresentação da versão 1.4.3
 
 - O título exibido é procurado em **português (Brasil)** pelo serviço TMDb localizado. O IMDb ID original continua no link da ficha e da busca de torrents.

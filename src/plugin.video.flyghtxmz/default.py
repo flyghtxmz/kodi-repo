@@ -85,6 +85,7 @@ def show_sections(media):
             add_item(title.format(year=year, prev_year=year-1, prev2_year=year-2), "recent",
                      folder=True, category=category)
     add_item("Gêneros", "genres", folder=True, media=media)
+    add_item("Explorar catálogo", "explore", folder=True, media=media)
     finish()
 
 
@@ -105,20 +106,31 @@ def show_tools():
     add_item("Testar Elementum (abrir addon)", "elementum_test")
     add_item("Como instalar o Elementum", "elementum_help")
     add_item("Diagnóstico de conexão", "diagnostic")
+    add_item("Legendas PT-BR do título selecionado", "subtitles")
     add_item("Configurações avançadas", "settings")
     finish()
 
 
-def show_recent(category, page=1, term=""):
+def show_recent(category, page=1, term="", filter_kind="", filter_value=""):
     from recent import list_titles
     xbmcplugin.setContent(HANDLE, "tvshows" if category.startswith("series_") or category == "search_series" else "movies")
     try:
-        results, more = list_titles(category, page=page, search_term=term)
+        if filter_kind:
+            from discovery import list_titles as discover
+            media = "series" if category.startswith("series_") else "movie"
+            results, more = discover(media, filter_kind, filter_value, page=page)
+        else:
+            results, more = list_titles(category, page=page, search_term=term)
         # Mostra nomes e sinopses localizados no painel da capa,
         # preservando o IMDb ID para a busca de torrents.
         from metadata_ptbr import descriptions_for_catalog, FALLBACK_SYNOPSIS
         try:
-            localized = descriptions_for_catalog(results, include_titles=True)
+            if filter_kind and filter_kind != "year":
+                localized = {"{}:{}".format(item["type"], item["id"]):
+                             {"title": item["title"], "plot": item.get("plot") or FALLBACK_SYNOPSIS}
+                             for item in results}
+            else:
+                localized = descriptions_for_catalog(results, include_titles=True)
         except (OSError, ValueError, TypeError):
             localized = {}
         rendered = []
@@ -148,12 +160,87 @@ def show_recent(category, page=1, term=""):
                      info=info, identifier=movie["id"], media=movie["type"])
         if more:
             add_item("Próxima página >>", "recent", folder=True, category=category,
-                     page=page+1, term=term)
+                     page=page+1, term=term, filter_kind=filter_kind, filter_value=filter_value)
         if not results:
             xbmcgui.Dialog().ok("Nenhum título", "Não há títulos nesta seção no momento.")
     except Exception as exc:
         xbmcgui.Dialog().ok("Catálogo de lançamentos", "Erro ao consultar títulos: " + str(exc)[:170])
     finish()
+
+
+def show_explore(media):
+    xbmcplugin.setContent(HANDLE, "videos")
+    for label, kind in (("Escolher ano", "year"), ("Idioma original", "language"),
+                        ("País e idioma original", "country"), ("Animes", "anime")):
+        add_item(label, "choose_filter", media=media, kind=kind)
+    if media == "movie":
+        add_item("Clássicos por década", "choose_filter", media=media, kind="classic")
+    finish()
+
+
+def choose_filter(media, kind):
+    from discovery import LANGUAGES, COUNTRIES
+    finish()
+    if media not in ("movie", "series"):
+        return
+    value = ""
+    if kind == "year":
+        value = xbmcgui.Dialog().input("Ano (ex.: 1999)", type=xbmcgui.INPUT_NUMERIC)
+        if not value:
+            return
+        if not re.fullmatch(r"[12][0-9]{3}", value) or not 1874 <= int(value) <= date.today().year + 1:
+            xbmcgui.Dialog().ok("Ano inválido", "Informe um ano entre 1874 e {}.".format(date.today().year + 1))
+            return
+    elif kind in ("language", "country"):
+        choices = LANGUAGES if kind == "language" else COUNTRIES
+        index = xbmcgui.Dialog().select("Idioma original" if kind == "language" else "País e idioma original", [row[0] for row in choices])
+        if index is None or not 0 <= index < len(choices):
+            return
+        value = choices[index][1]
+    elif kind == "classic":
+        decades = list(range(1990, 1880, -10))
+        index = xbmcgui.Dialog().select("Década", ["{}–{}".format(n, n+9) for n in decades])
+        if index is None or not 0 <= index < len(decades):
+            return
+        years = list(range(decades[index]+9, decades[index]-1, -1))
+        chosen = xbmcgui.Dialog().select("Ano", [str(n) for n in years])
+        if chosen is None or not 0 <= chosen < len(years):
+            return
+        kind, value = "year", str(years[chosen])
+    elif kind != "anime":
+        return
+    xbmc.executebuiltin("Container.Update({})".format(plugin_url(
+        "recent", category="series_popular" if media == "series" else "movies_popular",
+        filter_kind=kind, filter_value=value, page=1)))
+
+
+def show_subtitles():
+    finish()
+    try:
+        import local_cache
+        import subtitles_client
+        player = xbmc.Player()
+        if not player.isPlayingVideo():
+            xbmcgui.Dialog().ok("Legendas", "Inicie o vídeo e volte a esta opção para escolher a legenda.")
+            return
+        playing = player.getPlayingFile()
+        context = local_cache.get("playback_context", "selected")
+        if not isinstance(context, dict):
+            xbmcgui.Dialog().ok("Legendas", "Selecione primeiro um título no Felipe Vídeos.")
+            return
+        entries = subtitles_client.list_subtitles(context)
+        if not entries:
+            xbmcgui.Dialog().ok("Legendas", "Nenhuma legenda em português encontrada para este título.")
+            return
+        index = xbmcgui.Dialog().select("Legendas — " + context.get("title", ""), [row["label"] for row in entries])
+        if index is None or not 0 <= index < len(entries):
+            return
+        path = subtitles_client.download(entries[index])
+        if player.isPlayingVideo() and player.getPlayingFile() == playing:
+            player.setSubtitles(path)
+            player.showSubtitles(True)
+    except (OSError, ValueError, TypeError, RuntimeError):
+        xbmcgui.Dialog().ok("Legendas indisponíveis", "Não foi possível carregar a legenda. Tente novamente mais tarde.")
 
 
 def show_recent_detail(identifier, media):
@@ -243,8 +330,8 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None)
         if not sources:
             xbmcgui.Dialog().ok(
                 "Nenhuma fonte disponível",
-                ("O Torrentio não retornou fontes para este episódio." if season is not None else
-                 "Cloudflare e Torrentio não retornaram fontes compatíveis para este título."))
+                ("Nenhuma fonte encontrada para este episódio." if season is not None else
+                 "Nenhuma fonte compatível encontrada para este título."))
             return
         labels = []
         for source in sources:
@@ -267,6 +354,11 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None)
                     "O provedor informou 0 seeders. A reprodução pode demorar "
                     "ou não iniciar. Deseja tentar mesmo assim?"):
                 return
+        try:
+            from subtitles_client import save_context
+            save_context(title, imdb, season=season, episode=episode)
+        except ImportError:
+            pass
         start_cloudflare_play(selected["url"], file_index=selected.get("file_index"))
     except Exception as error:
         xbmc.log("Felipe Vídeos: consulta de fontes falhou ({})".format(
@@ -474,7 +566,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.4.5",
+        "Felipe Vídeos 1.5.0",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -491,13 +583,20 @@ def main():
         show_genres(params.get("media", ["movie"])[0])
     elif action == "tools":
         show_tools()
+    elif action == "explore":
+        show_explore(params.get("media", ["movie"])[0])
+    elif action == "choose_filter":
+        choose_filter(params.get("media", ["movie"])[0], params.get("kind", ["year"])[0])
+    elif action == "subtitles":
+        show_subtitles()
     elif action == "recent":
         try:
             page = int(params.get("page", ["1"])[0])
         except ValueError:
             page = 1
         show_recent(params.get("category", ["movies_new"])[0],
-                    page=page, term=params.get("term", [""])[0])
+                    page=page, term=params.get("term", [""])[0],
+                    filter_kind=params.get("filter_kind", [""])[0], filter_value=params.get("filter_value", [""])[0])
     elif action == "recent_detail":
         show_recent_detail(params.get("identifier", [""])[0],
                            params.get("media", ["movie"])[0])

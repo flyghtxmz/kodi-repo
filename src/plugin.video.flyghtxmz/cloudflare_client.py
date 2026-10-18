@@ -4,6 +4,7 @@ Aceita provedores definidos na API do usuário, sem exigir token local.
 Bloqueia o provedor removido, além de links malformados e endereços locais.
 """
 import re
+import base64
 import ipaddress
 from urllib.parse import parse_qs, urlsplit
 import json
@@ -104,9 +105,10 @@ def _torrent_hash(item, uri):
         if parsed.scheme.lower() != "magnet":
             return ""
         for xt in parse_qs(parsed.query).get("xt", []):
-            match = re.fullmatch(r"urn:btih:([a-fA-F0-9]{40})", xt, re.I)
+            match = re.fullmatch(r"urn:btih:([a-fA-F0-9]{40}|[a-z2-7]{32})", xt, re.I)
             if match:
-                return match.group(1).lower()
+                value = match.group(1)
+                return base64.b32decode(value.upper()).hex() if len(value) == 32 else value.lower()
     except (ValueError, TypeError):
         pass
     return ""
