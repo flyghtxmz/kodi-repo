@@ -120,6 +120,27 @@ class RecentCatalogTests(unittest.TestCase):
         self.assertEqual(movie["rating"], "8.7")
         self.assertEqual(movie["trailer_id"], "ZkN2M4ODdys")
 
+    def test_reopening_movie_uses_short_metadata_cache_without_requery(self):
+        meta = {"meta": {"id": "tt1234567", "name": "The Film",
+                         "type": "movie", "year": 2026, "imdbRating": "7.4"}}
+        store = {}
+        cache = types.ModuleType("local_cache")
+        cache.get = lambda namespace, key: store.get((namespace, key))
+        cache.put = lambda namespace, key, value, **options: store.__setitem__(
+            (namespace, key), value)
+        localized = types.ModuleType("metadata_ptbr")
+        localized.enrich = lambda *args, **kwargs: ("Sinopse PT-BR", "7.4", 10000)
+        localized.localized_title = lambda *args: "O Filme"
+        with patch.dict(sys.modules, {"local_cache": cache, "metadata_ptbr": localized}):
+            with patch.object(REC, "fetch", return_value=meta) as fetch:
+                first = REC.detail("tt1234567", "movie")
+                second = REC.detail("tt1234567", "movie")
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(first["title"], "O Filme")
+        self.assertEqual(second["title"], "O Filme")
+        self.assertEqual(second["rating"], "7.4")
+        self.assertIn(("title_details", "movie:tt1234567"), store)
+
     def test_localization_failure_never_displays_original_english_synopsis(self):
         incoming = {"meta":{
             "id":"tt1234567", "name":"The Film", "type":"series",
