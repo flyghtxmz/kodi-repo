@@ -1,4 +1,12 @@
-## Felipe Vídeos 1.5.3 — dublados e diagnóstico de reprodução
+## Versão 1.5.4 — correção de magnet e áudio PT-BR
+
+- Corrigida a passagem de magnet ao Elementum: o identificador `xt=urn:btih:HASH` usa **dois-pontos literais** dentro do magnet, e a URL externa do Kodi é codificada uma única vez. Corrige o caso de log `missing info-hash from URI` com `xt=urn%253Abtih%253A...`.
+- A mesma normalização é feita no momento da reprodução para URLs antigas ainda armazenadas em cache, inclusive de outros provedores. O índice original `oindex` continua preservado.
+- `Subs EN/PTBR` e outras marcas **somente de legenda** não serão consideradas como evidência de áudio dublado. Indicadores efetivos de dublagem, como `DUBLADO` e `Áudio BR`, continuam reconhecidos.
+- A busca rápida ainda recorre aos demais provedores quando não encontra áudio PT-BR declarado. A classificação é textual, não confirmação da faixa de áudio.
+- Os testes de código reproduzem o magnet do log e os falsos positivos de legenda; a reprodução real requer validação na TV Box com um torrent autorizado e peers disponíveis.
+
+## Felipe Vídeos 1.5.4 — dublados e diagnóstico de reprodução
 
 - **PT-BR**: a busca rápida do Torrentio não encerra a pesquisa se não houver áudio brasileiro indicado. Nesse caso também consulta Cloudflare, MediaFusion e Comet (filmes) ou os demais provedores compatíveis (episódios). Isso pode levar alguns segundos a mais em títulos sem PT-BR marcado.
 - Idioma é identificado a partir dos campos explícitos do título, descrição, nome de arquivo e idiomas retornados pelo serviço. **Provedor brasileiro sozinho não prova dublagem.**
