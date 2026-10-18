@@ -106,6 +106,7 @@ def show_tools():
     add_item("Adicionar magnet ou arquivo .torrent", "torrent_input")
     add_item("Configurações do Elementum", "elementum_settings")
     add_item("Testar Elementum (abrir addon)", "elementum_test")
+    add_item("Diagnosticar última reprodução", "playback_check")
     add_item("Como instalar o Elementum", "elementum_help")
     add_item("Diagnóstico de conexão", "diagnostic")
     add_item("Legendas PT-BR do título selecionado", "subtitles")
@@ -347,20 +348,43 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
             size_text = "{:.1f} GB".format(source["size"] / 1073741824) if source["size"] else "n/d"
             seed_text = str(source["seeders"]) if source["seeders"] is not None else "n/d"
             language = source["language"] if source["language"] != "unknown" else "n/d"
-            labels.append("{} | {} | {} | {} | Seeds: {} | Áudio: {}".format(
+            if language in ("pt-br", "ptbr"):
+                audio = "🔊 PT-BR indicado"
+            elif language == "pt":
+                audio = "🇵🇹 Português (região não confirmada)"
+            else:
+                audio = "❔ Áudio não confirmado"
+            labels.append("{} | {} | {} | {} | Seeds: {} | {}".format(
                 source["title"], source["source"], source["quality"],
-                size_text, seed_text, language))
+                size_text, seed_text, audio))
         target = "{} S{:02d}E{:02d}".format(title, season, episode) if season is not None else title
+        extra_actions = []
         if not extended and imdb:
-            labels.append("Pesquisar também Cloudflare, MediaFusion e Comet (pode demorar)")
-        index = xbmcgui.Dialog().select("Selecionar fonte — {}".format(target), labels)
+            extra_actions.append(("🔎 Pesquisar mais fontes de todos os provedores", "extended"))
+        dubbed = [source for source in sources if str(source.get("language") or "").lower() in ("pt-br", "ptbr")]
+        if dubbed:
+            extra_actions.append(("🔊 Mostrar somente dublados/PT-BR indicados ({})".format(len(dubbed)), "dubbed"))
+        options = labels + [row[0] for row in extra_actions]
+        index = xbmcgui.Dialog().select(
+            "Selecionar fonte — {} | PT-BR: {} de {}".format(target, len(dubbed), len(sources)), options)
         if index is None or index < 0:
             return
-        if not extended and imdb and index == len(sources):
-            return choose_cloudflare_source(
-                title, year=year, imdb=imdb, season=season, episode=episode, extended=True)
         if index >= len(sources):
-            return
+            action = extra_actions[index - len(sources)][1]
+            if action == "extended":
+                return choose_cloudflare_source(
+                    title, year=year, imdb=imdb, season=season, episode=episode, extended=True)
+            if action == "dubbed":
+                subset = [
+                    next(i for i, source in enumerate(sources) if source is candidate)
+                    for candidate in dubbed
+                ]
+                picked = xbmcgui.Dialog().select(
+                    "Dublados/PT-BR indicados — {}".format(target),
+                    [labels[i] for i in subset])
+                if picked is None or picked < 0 or picked >= len(subset):
+                    return
+                index = subset[picked]
         selected = sources[index]
         # Se o provedor confirma ausência de seeders, oferecer escolha:
         # peers desconhecidos não são necessariamente zero.
@@ -377,6 +401,18 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
             # Legendas são opcionais; falhas de cache não podem impedir o player.
             xbmc.log("Felipe Vídeos: contexto de legendas indisponível ({})".format(
                 type(error).__name__), xbmc.LOGWARNING)
+        try:
+            import local_cache
+            local_cache.put("last_playback", "selected", {
+                "at": int(time.time()),
+                "source": str(selected.get("source") or "Provedor")[:70],
+                "language": str(selected.get("language") or "unknown")[:18],
+                "seeders": selected.get("seeders"),
+                "file_index": selected.get("file_index"),
+                "request": "preparando",
+            }, ttl=172800, max_entries=1)
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+            pass
         start_cloudflare_play(selected["url"], file_index=selected.get("file_index"))
     except Exception as error:
         xbmc.log("Felipe Vídeos: consulta de fontes falhou ({})".format(
@@ -540,11 +576,26 @@ def launch_elementum(uri, file_index=None):
         xbmcgui.Dialog().ok("Falha ao abrir Elementum",
                             "Não foi possível enviar o torrent ao Kodi. Abra Ferramentas → Testar Elementum.")
         return False
-    # Aceite não confirma peers nem vídeo iniciado. Não repetir o envio.
-    xbmc.log("Felipe Vídeos: Elementum Player.Open aceito pelo Kodi (oindex={}, duração={:.2f}s; buffer não confirmado)".format(
-        file_index, time.monotonic() - started), xbmc.LOGINFO)
+    # Aceite da chamada JSON-RPC NÃO confirma nem a execução do plugin nem o
+    # início do streaming. Não envie novamente automaticamente.
+    elapsed = time.monotonic() - started
+    xbmc.log("Felipe Vídeos: Kodi aceitou Player.Open (oindex={}, {:.2f}s); vídeo NÃO verificado".format(
+        file_index, elapsed), xbmc.LOGINFO)
     try:
-        xbmcgui.Dialog().notification("Elementum", "Solicitação enviada. Aguarde a resolução do torrent.", time=4000)
+        import local_cache
+        event = local_cache.get("last_playback", "selected")
+        if not isinstance(event, dict):
+            event = {}
+        event.update(request="aceito_pelo_kodi", handoff_seconds=round(elapsed, 2))
+        local_cache.put("last_playback", "selected", event, ttl=172800, max_entries=1)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        pass
+    try:
+        xbmcgui.Dialog().notification(
+            "Felipe Vídeos",
+            "Pedido recebido pelo Kodi; reprodução não confirmada. "
+            "Se não iniciar, abra Ferramentas > Diagnosticar última reprodução.",
+            time=5000)
     except (AttributeError, RuntimeError):
         pass
     return True
@@ -596,6 +647,47 @@ def test_elementum_start():
         "seeders positivos e verifique o buffer.".format(version))
     xbmc.executebuiltin(
         "ActivateWindow(Videos,plugin://plugin.video.elementum/,return)")
+
+
+def check_last_playback():
+    """Exibe estado atual e logs, sem consultar torrents ou repetir reprodução."""
+    finish()
+    try:
+        import local_cache
+        event = local_cache.get("last_playback", "selected")
+        if not isinstance(event, dict):
+            event = {}
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        event = {}
+    try:
+        playing = bool(xbmc.Player().isPlayingVideo())
+    except (AttributeError, RuntimeError):
+        playing = False
+    try:
+        from diagnostic import recent_errors
+        recent = recent_errors()[-8:]
+    except (ImportError, OSError, RuntimeError, TypeError):
+        recent = []
+    source = str(event.get("source") or "Não registrado")[:70]
+    seeders = event.get("seeders")
+    seeders = str(seeders) if type(seeders) is int else "Não informados"
+    language = str(event.get("language") or "não identificado")
+    checked = ("SIM — vídeo ativo" if playing else "NÃO — o Kodi não informa vídeo ativo")
+    report = [
+        "Reprodução ativa agora: " + checked,
+        "Fonte: " + source, "Áudio indicado: " + language,
+        "Seeders declarados: " + seeders,
+        "Índice do arquivo: " + str(event.get("file_index")),
+        "Último envio: " + str(event.get("request") or "não registrado"),
+        "Tempo do envio ao Kodi: " + str(event.get("handoff_seconds") or "n/d") + " s",
+        "", "Player.Open OK não significa torrent carregado.",
+        "Se Elementum também não abre em Ferramentas > Testar Elementum,",
+        "investigue a instalação/serviço do Elementum.",
+        "Se abre, mas o vídeo não inicia, confira peers, disco e buffer.",
+    ]
+    if recent:
+        report.extend(["", "Últimos registros locais do Kodi (URLs ocultas):"] + recent)
+    xbmcgui.Dialog().textviewer("Felipe Vídeos — diagnóstico de reprodução", "\n".join(report))
 
 
 def open_elementum_settings():
@@ -675,6 +767,8 @@ def main():
         open_elementum_settings()
     elif action == "elementum_test":
         test_elementum_start()
+    elif action == "playback_check":
+        check_last_playback()
     elif action == "elementum_help":
         show_help()
     elif action == "settings":
