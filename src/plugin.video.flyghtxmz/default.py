@@ -527,9 +527,38 @@ def validate_torrent_uri(raw):
     return None, "Aceito apenas magnet links ou URLs HTTP(S) de arquivos .torrent."
 
 
+def _canonical_elementum_magnet(uri):
+    """Libtorrent exige xt=urn:btih:HASH com dois-pontos literais.
+
+    Torrentio cria xt=urn%3Abtih%3AHASH (válido em URL genérica, mas o
+    Elementum pode rejeitar o infohash). O parâmetro EXTERNO uri continua
+    escapado exatamente uma vez por build_elementum_url.
+    """
+    if not isinstance(uri, str) or not uri.lower().startswith("magnet:?"):
+        return uri
+    parsed = urlsplit(uri)
+    if parsed.scheme.lower() != "magnet" or parsed.netloc or parsed.path:
+        raise ValueError("Magnet inválido.")
+    # Se já há xt literal válido, não altera magnet introduzido manualmente.
+    if re.search(r"(?:^|&)xt=urn:btih:(?:[a-fA-F0-9]{40}|[a-zA-Z2-7]{32})(?:&|$)",
+                 parsed.query, re.I):
+        return uri
+    from urllib.parse import parse_qsl, unquote
+    parts = parse_qsl(parsed.query, keep_blank_values=True)
+    xt_values = [unquote(value) for name, value in parts if name == "xt"]
+    xt = next((value for value in xt_values if re.fullmatch(
+        r"urn:btih:(?:[a-fA-F0-9]{40}|[a-zA-Z2-7]{32})", value, re.I)), None)
+    if not xt:
+        raise ValueError("Magnet sem infohash válido.")
+    others = [(key, value) for key, value in parts
+              if key in ("dn", "tr", "xl", "ws", "xs", "as")][:32]
+    tail = urlencode(others)
+    return "magnet:?xt=" + xt + ("&" + tail if tail else "")
+
+
 def build_elementum_url(uri, file_index=None):
     """urlencode escapa &, vírgulas e parênteses para não confundir o Kodi."""
-    params = {"uri": uri}
+    params = {"uri": _canonical_elementum_magnet(uri)}
     if file_index is not None:
         if type(file_index) is not int or not 0 <= file_index <= 100_000:
             raise ValueError("Índice de arquivo inválido.")
