@@ -294,7 +294,7 @@ class PluginTests(unittest.TestCase):
         tools = self.run_addon("tools")
         self.assertEqual(len(movies["items"]), 7)
         self.assertEqual(len(series["items"]), 7)
-        self.assertEqual(len(tools["items"]), 7)
+        self.assertEqual(len(tools["items"]), 8)
         self.assertEqual(movies["items"][-1]["listitem"].label, "Explorar catálogo")
         self.assertEqual(series["items"][-1]["listitem"].label, "Explorar catálogo")
         film_genres = self.run_addon("genres", query={"media": "movie"})
@@ -353,7 +353,8 @@ class PluginTests(unittest.TestCase):
             query={"identifier": "tt1234567", "media": "movie"},
             popup_choices=[0, -1])
         labels = result["popups"][1][1]
-        self.assertIn("Pesquisar também Cloudflare, MediaFusion e Comet", labels[-1])
+        self.assertTrue(any("Pesquisar mais fontes" in value for value in labels))
+        self.assertTrue(any("Mostrar somente dublados/PT-BR" in value for value in labels))
         self.assertEqual(len(result["lookups"]), 1)
         self.assertEqual(result["play_requests"], [])
         self.assertTrue(any("diagnóstico busca de fontes" in row[0] for row in result["logs"]))
@@ -364,9 +365,34 @@ class PluginTests(unittest.TestCase):
             popup_choices=[0, 1, 0])
         self.assertEqual(len(result["popups"]), 3)
         self.assertEqual(len(result["lookups"]), 2)
-        self.assertNotIn("Pesquisar também", result["popups"][2][1][-1])
+        self.assertFalse(any("Pesquisar mais fontes" in value for value in result["popups"][2][1]))
         self.assertEqual(len(result["play_requests"]), 1)
         self.assertEqual(result["items"], [])
+
+    def test_ptbr_only_option_filters_audio_selection(self):
+        rows = [{
+            "title": "Dublado", "source": "P1", "quality": "1080p",
+            "size": 100, "seeders": 10, "language": "pt-br",
+            "url": "https://media.example.org/video.torrent"
+        },{
+            "title": "Original", "source": "P2", "quality": "4K",
+            "size": 100, "seeders": 30, "language": "en",
+            "url": "https://media.example.org/video.torrent"
+        }]
+        result = self.run_addon("recent_detail", query={"identifier": "tt1234567"},
+                                source_items=rows, popup_choices=[0, 3, 0])
+        self.assertEqual(len(result["popups"]), 3)
+        self.assertIn("Dublados/PT-BR", result["popups"][2][0])
+        self.assertEqual(len(result["popups"][2][1]), 1)
+        self.assertIn("Dublado", result["popups"][2][1][0])
+        self.assertEqual(len(result["play_requests"]), 1)
+
+    def test_playback_check_shows_no_confirmed_video(self):
+        result = self.run_addon("playback_check")
+        self.assertEqual(len(result["play_requests"]), 0)
+        self.assertEqual(result["dialogs"][0][0],
+                         "Felipe Vídeos — diagnóstico de reprodução")
+        self.assertIn("não informa vídeo ativo", result["dialogs"][0][1])
 
     def test_zero_seed_source_warns_before_playback(self):
         empty = [{
