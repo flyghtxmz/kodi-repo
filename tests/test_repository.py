@@ -6,7 +6,7 @@ import runpy
 import sys
 import types
 import unittest
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, parse_qs
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
@@ -153,7 +153,8 @@ class PluginTests(unittest.TestCase):
             }]
         cloudflare_stub.list_sources = fake_sources
         cloudflare_stub.is_supported_source = lambda url: (
-            url == "https://media.example.org/video.torrent")
+            url == "https://media.example.org/video.torrent" or
+            (isinstance(url, str) and url.startswith("magnet:?xt=urn")))
         recent_stub = types.ModuleType("recent")
         recent_stub.CATEGORIES = (
             ("movies_new", "Filmes de {year}"),
@@ -439,6 +440,34 @@ class PluginTests(unittest.TestCase):
                 self.assertEqual(result["commands"], [])
                 self.assertEqual(result["play_requests"], [])
                 self.assertEqual(result["dialogs"], [])
+
+    def test_logged_failure_case_magnet_hash_survives_outer_kodi_encoding(self):
+        # Regression: screenshot 2026-10-18 showed missing info-hash from URI
+        # for a Torrentio magnet with percent-encoded urn separators.
+        hash_value = "a" * 40
+        upstream = ("magnet:?xt=urn%3Abtih%3A" + hash_value +
+                    "&dn=Film.Subs.EN%2FPTBR")
+        response = self.run_addon("recent_detail",
+            query={"identifier": "tt1234567"}, popup_choices=[0, 0],
+            source_items=[{
+                "title": "Film Subs EN/PTBR", "quality": "1080p",
+                "seeders": 1, "size": 1200, "source": "Torrentio",
+                "language": "unknown", "url": upstream, "file_index": 0
+            }])
+        self.assertEqual(len(response["play_requests"]), 1)
+        handoff = response["play_requests"][0]
+        self.assertNotIn("urn%253Abtih%253A", handoff)
+        magnet = parse_qs(urlsplit(handoff).query)["uri"][0]
+        self.assertEqual(parse_qs(urlsplit(magnet).query)["xt"],
+                         ["urn:btih:" + hash_value])
+        self.assertIn("magnet:?xt=urn:btih:", magnet)
+        self.assertIn("oindex=0", handoff)
+
+    def test_original_literal_magnet_unchanged_for_manual_input(self):
+        original = "magnet:?xt=urn:btih:" + "a"*40 + "&dn=Public Domain, A (Demo)"
+        result = self.run_addon("torrent_input", magnet_input=original)
+        target = result["play_requests"][0]
+        self.assertEqual(parse_qs(urlsplit(target).query)["uri"], [original])
 
     def test_source_file_index_is_sent_as_elementum_original_index(self):
         for file_index in (0, 3):
