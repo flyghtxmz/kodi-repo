@@ -1,6 +1,7 @@
 """Testes executáveis sem instalar o Kodi."""
 
 import hashlib
+import json
 import runpy
 import sys
 import types
@@ -55,8 +56,8 @@ class RepositoryTests(unittest.TestCase):
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
 
 class PluginTests(unittest.TestCase):
-    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None, allow_zero_seed=True, player_active=False, subtitle_items=None):
-        calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": [], "popups": [], "lookups": []}
+    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None, allow_zero_seed=True, player_active=False, subtitle_items=None, subtitle_error=None, elementum_enabled=True, player_open_response=None):
+        calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": [], "popups": [], "lookups": [], "rpc": [], "play_requests": [], "notifications": [], "logs": []}
         choices = list(popup_choices) if popup_choices is not None else [0]
         xbmc = types.ModuleType("xbmc")
         xbmcaddon = types.ModuleType("xbmcaddon")
@@ -114,6 +115,9 @@ class PluginTests(unittest.TestCase):
                 self.info.update(data)
 
         class Dialog:
+            def notification(self, title, message, **kwargs):
+                calls["notifications"].append((title, message))
+
             def ok(self, title, message):
                 calls["dialogs"].append((title, message))
 
@@ -190,13 +194,29 @@ class PluginTests(unittest.TestCase):
         recent_stub.justwatch_search_url = lambda title: "https://www.justwatch.com/br/busca?q=Movie+Recent"
         xbmcaddon.Addon = Addon
         xbmc.executebuiltin = calls["commands"].append
+        def execute_rpc(raw):
+            request = json.loads(raw)
+            calls["rpc"].append(request)
+            if request["method"] == "Addons.GetAddonDetails":
+                return json.dumps({"jsonrpc": "2.0", "id": request["id"],
+                                   "result": {"addon": {"enabled": elementum_enabled}}})
+            if request["method"] == "Player.Open":
+                calls["play_requests"].append(request["params"]["item"]["file"])
+                return player_open_response if player_open_response is not None else json.dumps({"result": "OK"})
+            raise AssertionError("Método inesperado: " + request["method"])
+        xbmc.executeJSONRPC = execute_rpc
+        xbmc.LOGINFO, xbmc.LOGWARNING, xbmc.LOGERROR = 1, 2, 3
+        xbmc.log = lambda message, level: calls["logs"].append((message, level))
         calls["subtitle_paths"] = []
         calls["subtitle_visibility"] = []
         xbmc.Player = lambda: types.SimpleNamespace(isPlayingVideo=lambda: player_active,
             getPlayingFile=lambda: "http://elementum.local/video.mkv",
             setSubtitles=calls["subtitle_paths"].append, showSubtitles=calls["subtitle_visibility"].append)
         subtitles_stub = types.ModuleType("subtitles_client")
-        subtitles_stub.save_context = lambda *args, **kwargs: None
+        def save_context(*args, **kwargs):
+            if subtitle_error:
+                raise subtitle_error
+        subtitles_stub.save_context = save_context
         subtitles_stub.list_subtitles = lambda context: subtitle_items or []
         subtitles_stub.download = lambda row: "/addon/profile/test.srt"
         cache_stub = types.ModuleType("local_cache")
@@ -323,8 +343,10 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(result["items"], [])
         self.assertEqual(len(result["popups"]), 2)
         self.assertIn("Provedor de teste", result["popups"][1][1][0])
-        self.assertEqual(len(result["commands"]), 1)
-        self.assertIn("plugin.video.elementum/play?uri=", result["commands"][0])
+        self.assertEqual(result["commands"], [])
+        self.assertEqual(len(result["play_requests"]), 1)
+        self.assertIn("plugin.video.elementum/play?uri=", result["play_requests"][0])
+        self.assertEqual(len(result["notifications"]), 1)
 
     def test_zero_seed_source_warns_before_playback(self):
         empty = [{
@@ -336,11 +358,12 @@ class PluginTests(unittest.TestCase):
             query={"identifier": "tt1234567"},
             popup_choices=[0, 0], source_items=empty, allow_zero_seed=False)
         self.assertEqual(cancelled["commands"], [])
+        self.assertEqual(cancelled["play_requests"], [])
         self.assertEqual(cancelled["dialogs"][0][0], "Fonte sem seeders")
         agreed = self.run_addon("recent_detail",
             query={"identifier": "tt1234567"},
             popup_choices=[0, 0], source_items=empty)
-        self.assertEqual(len(agreed["commands"]), 1)
+        self.assertEqual(len(agreed["play_requests"]), 1)
 
     def test_unknown_seeders_do_not_trigger_zero_seed_warning(self):
         source = [{
@@ -351,7 +374,7 @@ class PluginTests(unittest.TestCase):
         result = self.run_addon("recent_detail",
             query={"identifier": "tt1234567"},
             popup_choices=[0, 0], source_items=source, allow_zero_seed=False)
-        self.assertEqual(len(result["commands"]), 1)
+        self.assertEqual(len(result["play_requests"]), 1)
         self.assertEqual(result["dialogs"], [])
 
     def test_old_cloudflare_action_opens_popup(self):
@@ -360,7 +383,7 @@ class PluginTests(unittest.TestCase):
             popup_choices=[0])
         self.assertEqual(result["items"], [])
         self.assertEqual(len(result["popups"]), 1)
-        self.assertEqual(len(result["commands"]), 1)
+        self.assertEqual(len(result["play_requests"]), 1)
 
     def test_cancel_popup_does_not_start_playback(self):
         for picks in ([-1], [0, -1]):
@@ -368,6 +391,7 @@ class PluginTests(unittest.TestCase):
                 result = self.run_addon("recent_detail",
                     query={"identifier": "tt1234567"}, popup_choices=picks)
                 self.assertEqual(result["commands"], [])
+                self.assertEqual(result["play_requests"], [])
                 self.assertEqual(result["dialogs"], [])
 
     def test_source_file_index_is_sent_as_elementum_original_index(self):
@@ -378,9 +402,9 @@ class PluginTests(unittest.TestCase):
                     "language": "pt-br", "seeders": 8, "size": 1024,
                     "url": "https://media.example.org/video.torrent", "file_index": file_index,
                 }])
-            self.assertEqual(len(result["commands"]), 1)
-            self.assertIn("&oindex={})".format(file_index), result["commands"][0])
-            self.assertNotIn("&index=", result["commands"][0])
+            self.assertEqual(len(result["play_requests"]), 1)
+            self.assertIn("&oindex={}".format(file_index), result["play_requests"][0])
+            self.assertNotIn("&index=", result["play_requests"][0])
 
     def test_empty_sources_shows_message(self):
         result = self.run_addon("recent_detail",
@@ -410,7 +434,7 @@ class PluginTests(unittest.TestCase):
             ["S01E01 — Piloto", "S01E03 — Terceiro"])
         self.assertIn("S01E03", result["popups"][2][0])
         self.assertEqual(result["lookups"], [("Test Series", "tt1234567", 1, 3)])
-        self.assertEqual(len(result["commands"]), 1)
+        self.assertEqual(len(result["play_requests"]), 1)
 
     def test_series_specials_and_episode_cancel(self):
         special = self.run_addon(
@@ -423,6 +447,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(len(cancelled["popups"]), 2)
         self.assertEqual(cancelled["lookups"], [])
         self.assertEqual(cancelled["commands"], [])
+        self.assertEqual(cancelled["play_requests"], [])
 
     def test_series_second_season_episode_eight(self):
         result = self.run_addon(
@@ -435,6 +460,7 @@ class PluginTests(unittest.TestCase):
         result = self.run_addon("cloudflare_play", query={
             "url": "file:///tmp/malicious.torrent"})
         self.assertEqual(result["commands"], [])
+        self.assertEqual(result["play_requests"], [])
 
     def test_recent_where_opens_provider_search(self):
         result = self.run_addon("recent_where", query={"identifier": "tt1234567", "media": "movie"})
@@ -452,18 +478,18 @@ class PluginTests(unittest.TestCase):
         magnet = "magnet:?xt=urn:btih:" + "a" * 40 + "&dn=Public Domain, A (Demo)"
         result = self.run_addon("torrent_input", magnet_input=magnet)
         self.assertEqual(len(result["ends"]), 1)
-        self.assertEqual(len(result["commands"]), 1)
-        command = result["commands"][0]
-        self.assertTrue(command.startswith("PlayMedia(plugin://plugin.video.elementum/play?"))
-        self.assertTrue(command.endswith(")"))
-        url = command[len("PlayMedia("):-1]
+        self.assertEqual(result["commands"], [])
+        self.assertEqual(len(result["play_requests"]), 1)
+        url = result["play_requests"][0]
+        self.assertTrue(url.startswith("plugin://plugin.video.elementum/play?"))
         self.assertEqual(parse_qs(urlsplit(url).query)["uri"], [magnet])
-        self.assertNotIn("Public Domain, A", command)
+        self.assertNotIn("Public Domain, A", url)
 
     def test_missing_elementum_uses_instruction_dialog(self):
         magnet = "magnet:?xt=urn:btih:" + "0" * 40
         result = self.run_addon("torrent_input", magnet_input=magnet, elementum_installed=False)
         self.assertFalse(result["commands"])
+        self.assertFalse(result["play_requests"])
         self.assertEqual(result["dialogs"][0][0], "Elementum necessário")
 
     def test_invalid_hash_and_scheme_do_not_play(self):
@@ -473,19 +499,21 @@ class PluginTests(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 result = self.run_addon("torrent_input", magnet_input=invalid)
                 self.assertFalse(result["commands"])
+                self.assertFalse(result["play_requests"])
                 self.assertEqual(result["dialogs"][0][0], "Link inválido")
 
     def test_cancel_is_silent(self):
         result = self.run_addon("torrent_input", magnet_input="")
         self.assertEqual(result["dialogs"], [])
         self.assertFalse(result["commands"])
+        self.assertFalse(result["play_requests"])
 
     def test_torrent_http_url_handoff(self):
         from urllib.parse import parse_qs, urlsplit
         uri = "https://example.com/free-film.torrent?key=foo&lang=pt"
         result = self.run_addon("torrent_input", magnet_input=uri)
-        command = result["commands"][0]
-        self.assertEqual(parse_qs(urlsplit(command[len("PlayMedia("):-1]).query)["uri"], [uri])
+        url = result["play_requests"][0]
+        self.assertEqual(parse_qs(urlsplit(url).query)["uri"], [uri])
 
     def test_elementum_settings_and_missing_dependency(self):
         self.assertEqual(self.run_addon("elementum_settings")["settings"], 1)
@@ -507,7 +535,40 @@ class PluginTests(unittest.TestCase):
 
     def test_magnet_accepts_base32(self):
         magnet = "magnet:?xt=urn:btih:" + "A" * 32
-        self.assertEqual(len(self.run_addon("torrent_input", magnet_input=magnet)["commands"]), 1)
+        self.assertEqual(len(self.run_addon("torrent_input", magnet_input=magnet)["play_requests"]), 1)
+
+    def test_subtitle_cache_failure_does_not_block_selected_torrent(self):
+        for error in (OSError("profile unavailable"), ValueError("corrupt cache"), RuntimeError("Kodi profile")):
+            result = self.run_addon("recent_detail", query={"identifier": "tt1234567"},
+                                    popup_choices=[0, 0], subtitle_error=error)
+            self.assertEqual(len(result["play_requests"]), 1)
+            self.assertEqual(result["dialogs"], [])
+            self.assertTrue(any("contexto de legendas" in line for line, level in result["logs"]))
+
+    def test_disabled_elementum_is_reported_without_starting_playback(self):
+        result = self.run_addon("recent_detail", query={"identifier": "tt1234567"},
+                                popup_choices=[0, 0], elementum_enabled=False)
+        self.assertEqual(result["play_requests"], [])
+        self.assertEqual(result["dialogs"][0][0], "Elementum desativado")
+        self.assertEqual(result["notifications"], [])
+
+    def test_kodi_rejection_is_visible_and_does_not_repeat_torrent(self):
+        result = self.run_addon("recent_detail", query={"identifier": "tt1234567"},
+                                popup_choices=[0, 0], player_open_response=json.dumps({
+                                    "error": {"code": -32602, "message": "Invalid params"}}))
+        self.assertEqual(len(result["play_requests"]), 1)
+        self.assertEqual(result["commands"], [])
+        self.assertEqual(result["dialogs"][0][0], "Falha ao abrir Elementum")
+        self.assertIn("-32602", result["dialogs"][0][1])
+        self.assertEqual(result["notifications"], [])
+
+    def test_invalid_player_response_is_visible_without_second_playback(self):
+        for payload in ("not JSON", "null", "{}"):
+            result = self.run_addon("recent_detail", query={"identifier": "tt1234567"},
+                                    popup_choices=[0, 0], player_open_response=payload)
+            self.assertEqual(len(result["play_requests"]), 1)
+            self.assertEqual(result["dialogs"][0][0], "Falha ao abrir Elementum")
+            self.assertEqual(result["notifications"], [])
 
     def test_settings_action(self):
         result = self.run_addon("settings")

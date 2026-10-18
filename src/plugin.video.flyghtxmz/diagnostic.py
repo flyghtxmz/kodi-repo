@@ -10,6 +10,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 
 import xbmcvfs
+import xbmcaddon
 
 ROOT = "https://raw.githubusercontent.com/flyghtxmz/kodi-repo/main/"
 TARGETS = ("addons.xml.md5", "addons.xml", "repository.flyghtxmz-1.0.3.zip")
@@ -44,7 +45,7 @@ def _error(exc):
 
 
 def recent_errors():
-    """Filtra mensagens do repositório no log local, evitando mostrar o log inteiro."""
+    """Filtra erros e o envio ao player no log local, sem expor URLs ou credenciais."""
     try:
         path = xbmcvfs.translatePath("special://logpath/kodi.log")
         with open(path, "r", encoding="utf-8", errors="replace") as handle:
@@ -54,17 +55,21 @@ def recent_errors():
             lines = handle.read().splitlines()
         results = []
         for line in lines:
-            if "flyghtxmz" not in line.lower() and "CRepository:" not in line:
+            lowered = line.lower()
+            if not any(term in lowered for term in ("flyghtxmz", "felipe vídeos:", "elementum", "crepository:")):
                 continue
-            scrubbed = re.sub(r"https?://\S+", "<url>", line)
+            if re.search(r"authorization|password|senha|token|setting auth|login", lowered):
+                continue
+            scrubbed = re.sub(r"(?:https?://|plugin://|magnet:\?)\S+", "<url>", line, flags=re.I)
             results.append(scrubbed[-260:])
-        return results[-8:]
+        return results[-12:]
     except Exception:
         return []
 
 
 def run_diagnostic():
-    results = ["Felipe Vídeos 1.1.2 - Kodi 21.2", "Teste de conectividade local", ""]
+    version = xbmcaddon.Addon().getAddonInfo("version")
+    results = ["Felipe Vídeos " + version, "Teste de conectividade e reprodução local", ""]
     kodi_results = {}
     python_results = {}
     for target in TARGETS:
@@ -92,6 +97,6 @@ def run_diagnostic():
             results.append("{} catálogo/checksum: INDISPONÍVEL ({})".format(origin, _error(e)))
     recent = recent_errors()
     if recent:
-        results.extend(["", "Trechos recentes do Kodi (URLs ocultas):"] + recent)
+        results.extend(["", "Trechos recentes de reprodução/repositório (URLs ocultas):"] + recent)
     results.extend(["", "Se o Kodi VFS falha e o Python funciona: possível problema no curl/TLS do Kodi.", "Se ambos funcionam: conferir log de CRepository e limpar estado antigo via reinstalação e atualizar addons.", "Envie uma foto desta tela para análise."])
     return "\n".join(results)

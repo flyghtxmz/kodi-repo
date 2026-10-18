@@ -1,3 +1,21 @@
+## Envio ao Elementum (1.5.1)
+
+O popup envia a fonte selecionada por `Player.Open`, verificando o aceite do
+Kodi e preservando `uri` e `oindex`. O mesmo método vale para entrada manual.
+O addon avisa se o Elementum está desativado ou se o Kodi recusa a solicitação;
+não repete o envio automaticamente. Falhas no cache opcional de legendas não
+interrompem a reprodução.
+
+A notificação “Solicitação enviada” confirma somente que o Kodi aceitou o
+pedido. O Elementum ainda precisa resolver metadata, encontrar peers e preparar
+o buffer. Se não aparecer sua tela de carregamento, use **Ferramentas → Testar
+Elementum (abrir addon)**. O **Diagnóstico de conexão** agora também inclui
+as mensagens recentes do Elementum e o aceite/recusa do pedido, com URLs
+ocultas. Não exige habilitar servidor HTTP, portas ou controle remoto no Kodi.
+
+Referências: [Player.Open no Kodi](https://kodi.wiki/view/JSON-RPC_API/v13#Player.Open)
+e [rota de reprodução do Elementum](https://github.com/elgatito/elementum/blob/master/api/play.go).
+
 ## Novas fontes, exploração e legendas (1.5.0)
 
 Atualize **Felipe Vídeos para 1.5.0** pelo repositório do Kodi.

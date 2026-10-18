@@ -4,6 +4,7 @@ O addon não baixa torrents diretamente: entrega magnet/.torrent ao Elementum
 instalado no mesmo Kodi. O buffer e o armazenamento pertencem ao Elementum.
 """
 
+import json
 import re
 import sys
 import unicodedata
@@ -357,8 +358,10 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None)
         try:
             from subtitles_client import save_context
             save_context(title, imdb, season=season, episode=episode)
-        except ImportError:
-            pass
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as error:
+            # Legendas são opcionais; falhas de cache não podem impedir o player.
+            xbmc.log("Felipe Vídeos: contexto de legendas indisponível ({})".format(
+                type(error).__name__), xbmc.LOGWARNING)
         start_cloudflare_play(selected["url"], file_index=selected.get("file_index"))
     except Exception as error:
         xbmc.log("Felipe Vídeos: consulta de fontes falhou ({})".format(
@@ -380,12 +383,7 @@ def start_cloudflare_play(url, file_index=None):
     if not is_supported_source(url):
         xbmcgui.Dialog().ok("Fonte inválida", "O link não é um magnet ou torrent compatível.")
         return
-    if elementum_addon() is None:
-        missing_elementum()
-        return
-    # O início de buffering é gerenciado pelo Elementum. Não repita
-    # automaticamente este comando: o Kodi pode ainda estar iniciando-o.
-    xbmc.executebuiltin("PlayMedia({})".format(build_elementum_url(url, file_index=file_index)))
+    launch_elementum(url, file_index=file_index)
 
 
 def play_cloudflare_source(url):
@@ -489,6 +487,53 @@ def build_elementum_url(uri, file_index=None):
     return "{}?{}".format(ELEMENTUM_PLAY_URL, urlencode(params))
 
 
+def launch_elementum(uri, file_index=None):
+    """Solicita uma única reprodução e verifica o aceite do Kodi, não o buffer."""
+    if elementum_addon() is None:
+        missing_elementum()
+        return False
+    try:
+        target = build_elementum_url(uri, file_index=file_index)
+        details = json.loads(xbmc.executeJSONRPC(json.dumps({
+            "jsonrpc": "2.0", "id": 1, "method": "Addons.GetAddonDetails",
+            "params": {"addonid": ELEMENTUM_ID, "properties": ["enabled"]}})))
+        if isinstance(details, dict):
+            result = details.get("result")
+            addon = result.get("addon") if isinstance(result, dict) else None
+            addon = addon if isinstance(addon, dict) else {}
+            if addon.get("enabled") is False:
+                xbmcgui.Dialog().ok("Elementum desativado",
+                                    "Ative o Elementum em Meus addons → Addons de vídeo e tente novamente.")
+                return False
+        # Player.Open envia a URL estruturada, sem o parser de texto de PlayMedia,
+        # e informa se o Kodi recusou o pedido. O Elementum resolve o torrent.
+        response = json.loads(xbmc.executeJSONRPC(json.dumps({
+            "jsonrpc": "2.0", "id": 2, "method": "Player.Open",
+            "params": {"item": {"file": target}}})))
+        if not isinstance(response, dict) or response.get("result") != "OK":
+            error = response.get("error") if isinstance(response, dict) else None
+            code = error.get("code") if isinstance(error, dict) else None
+            code = str(code) if type(code) is int else "resposta inválida"
+            xbmc.log("Felipe Vídeos: Elementum Player.Open recusado ({})".format(code), xbmc.LOGERROR)
+            xbmcgui.Dialog().ok("Falha ao abrir Elementum",
+                                "O Kodi não aceitou a reprodução ({}). Abra Ferramentas → Testar Elementum."
+                                .format(code))
+            return False
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        xbmc.log("Felipe Vídeos: falha na solicitação Player.Open do Elementum", xbmc.LOGERROR)
+        xbmcgui.Dialog().ok("Falha ao abrir Elementum",
+                            "Não foi possível enviar o torrent ao Kodi. Abra Ferramentas → Testar Elementum.")
+        return False
+    # Aceite não confirma peers nem vídeo iniciado. Não repetir o envio.
+    xbmc.log("Felipe Vídeos: Elementum Player.Open aceito pelo Kodi (oindex={})".format(
+        file_index), xbmc.LOGINFO)
+    try:
+        xbmcgui.Dialog().notification("Elementum", "Solicitação enviada. Aguarde a resolução do torrent.", time=4000)
+    except (AttributeError, RuntimeError):
+        pass
+    return True
+
+
 def elementum_addon():
     try:
         return xbmcaddon.Addon(id=ELEMENTUM_ID)
@@ -513,14 +558,7 @@ def open_magnet_dialog():
         if error:
             xbmcgui.Dialog().ok("Link inválido", error)
         return
-    if elementum_addon() is None:
-        missing_elementum()
-        return
-    target = build_elementum_url(uri)
-    # O Elementum controla a escolha do arquivo, buffering, playback e seeding.
-    # PlayMedia aciona seu plugin de vídeo, sem requerer requisições HTTP locais
-    # nem desabilitar proteções de rede da TV Box.
-    xbmc.executebuiltin("PlayMedia({})".format(target))
+    launch_elementum(uri)
 
 
 def test_elementum_start():
@@ -566,7 +604,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.5.0",
+        "Felipe Vídeos 1.5.1",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
