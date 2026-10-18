@@ -213,6 +213,35 @@ class TorrentioTests(unittest.TestCase):
                     self.torrentio.list_sources("Filme", imdb="tt1254207")
                 write.assert_not_called()
 
+    def test_quick_mode_returns_torrentio_without_querying_all_providers(self):
+        item = self.torrentio.parse_streams({"streams": [stream()]})[0]
+        with patch.object(self.torrentio, "list_sources", return_value=[item]) as primary, \
+                patch.object(self.cloudflare, "list_sources") as worker, \
+                patch.object(self.mediafusion, "list_sources") as media, \
+                patch.object(self.comet, "list_sources") as comet:
+            result = self.sources.list_sources("Filme", imdb="tt1254207", quick=True)
+        self.assertEqual(result, [item])
+        primary.assert_called_once()
+        worker.assert_not_called()
+        media.assert_not_called()
+        comet.assert_not_called()
+
+    def test_quick_mode_falls_back_to_other_providers_on_empty_or_error(self):
+        item = self.torrentio.parse_streams({"streams": [stream()]})[0]
+        for primary_answer in ([], OSError("Torrentio indisponível")):
+            with self.subTest(primary_answer=str(primary_answer)):
+                kwargs = ({"side_effect": primary_answer}
+                          if isinstance(primary_answer, Exception)
+                          else {"return_value": primary_answer})
+                with patch.object(self.torrentio, "list_sources", **kwargs) as primary, \
+                        patch.object(self.cloudflare, "list_sources", return_value=[item]) as worker, \
+                        patch.object(self.mediafusion, "list_sources", return_value=[]), \
+                        patch.object(self.comet, "list_sources", return_value=[]):
+                    result = self.sources.list_sources("Filme", imdb="tt1254207", quick=True)
+                self.assertEqual(result, [item])
+                primary.assert_called_once()
+                worker.assert_called_once()
+
     def test_sources_are_fetched_in_parallel(self):
         barrier = threading.Barrier(2)
         item = self.torrentio.parse_streams({"streams": [stream()]})[0]
