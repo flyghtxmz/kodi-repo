@@ -63,7 +63,7 @@ def _worker_sources(title, year="", imdb=""):
     return result
 
 
-def list_sources(title, year="", imdb="", season=None, episode=None):
+def list_sources(title, year="", imdb="", season=None, episode=None, quick=False):
     if not isinstance(title, str) or not title.strip():
         raise ValueError("O título não está disponível.")
     if imdb and (not isinstance(imdb, str) or not cloudflare_client.IMDB_ID.fullmatch(imdb)):
@@ -84,6 +84,21 @@ def list_sources(title, year="", imdb="", season=None, episode=None):
     options = {"year": year, "imdb": imdb}
     if season is not None:
         options.update(season=season, episode=episode)
+    # Interface rápida: primeiro tenta o provedor que costuma retornar fontes
+    # compatíveis. Em caso de erro/resultado vazio, recorre aos demais.
+    # A pesquisa completa continua disponível explicitamente no popup.
+    primary_ok = False
+    if quick and imdb:
+        try:
+            primary = torrentio_client.list_sources(title, **options)
+            primary_ok = True
+            if primary:
+                return merge_sources([primary])
+        except Exception as error:
+            logging.getLogger(__name__).warning(
+                "Consulta rápida Torrentio indisponível (%s)", type(error).__name__)
+    if quick and imdb:
+        selected = tuple((name, fn) for name, fn in selected if name != "Torrentio")
     with ThreadPoolExecutor(max_workers=4) as pool:
         jobs = {pool.submit(search, title, **options): name
                 for name, search in selected
@@ -95,6 +110,6 @@ def list_sources(title, year="", imdb="", season=None, episode=None):
                 failures.append(jobs[job])
                 logging.getLogger(__name__).warning("Fonte %s indisponível (%s)", jobs[job], type(error).__name__)
     result = merge_sources(groups)
-    if not result and len(failures) == len(jobs):
+    if not result and len(failures) == len(jobs) and not primary_ok:
         raise ValueError("Não foi possível consultar as fontes disponíveis.")
     return result
