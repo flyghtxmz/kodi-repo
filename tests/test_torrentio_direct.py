@@ -84,6 +84,28 @@ class TorrentioTests(unittest.TestCase):
         self.assertEqual(parsed[0]["source"], "Torrentio / Comando")
         self.assertTrue(self.cloudflare.is_supported_source(parsed[0]["url"]))
 
+    def test_torrentio_magnet_uses_literal_btih_separators_for_elementum(self):
+        row = stream(title="Demo Dublado\\n👤 10", infoHash=HASH)
+        src = self.torrentio.parse_streams({"streams": [row]})[0]
+        self.assertTrue(src["url"].startswith("magnet:?xt=urn:btih:" + HASH))
+        self.assertNotIn("urn%3Abtih%3A", src["url"])
+        from urllib.parse import parse_qs, urlsplit
+        self.assertEqual(parse_qs(urlsplit(src["url"]).query)["xt"],
+                         ["urn:btih:" + HASH])
+
+    def test_subtitle_only_ptbr_not_mistaken_for_dubbed_audio(self):
+        raw = "Resident.Evil.2026.TELESYNC.CAM.Subs.EN/PTBR"
+        row = stream(title=raw + "\\n👤 1 ⚙️ MicoLeaoDublado",
+                     name="Torrentio\\n1080p", infoHash=HASH)
+        result = self.torrentio.parse_streams({"streams": [row]})
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["language"], "unknown")
+        # As marcas realmente relacionadas ao áudio continuam com prioridade.
+        with_dub = stream(title="Filme 1080p DUBLADO\\n👤 10", infoHash="b"*40)
+        with_dual = stream(title="Filme 1080p Áudio BR\\n👤 10", infoHash="c"*40)
+        parsed = self.torrentio.parse_streams({"streams": [with_dub, with_dual]})
+        self.assertEqual([src["language"] for src in parsed], ["pt-br", "pt-br"])
+
     def test_parser_rejects_bad_hashes_indices_and_ambiguous_packs(self):
         rows = [stream(infoHash="invalid"), stream(fileIdx=-1), stream(fileIdx=True),
                 stream(fileIdx="3"), stream(fileIdx=100_001),
