@@ -7,6 +7,7 @@ instalado no mesmo Kodi. O buffer e o armazenamento pertencem ao Elementum.
 import json
 import re
 import sys
+import time
 import unicodedata
 from datetime import date
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -249,7 +250,10 @@ def show_recent_detail(identifier, media):
     from recent import detail
     finish()
     try:
+        started = time.monotonic()
         movie = detail(identifier, media=media)
+        xbmc.log("Felipe Vídeos: diagnóstico ficha de título: {:.2f}s".format(
+            time.monotonic() - started), xbmc.LOGINFO)
         # Para séries, o primeiro popup lista as temporadas oficiais
         # (sem pasta intermediária). Filmes continuam com Buscar fontes.
         episodes = movie.get("episodes") or {} if media == "series" else {}
@@ -319,15 +323,19 @@ def choose_series_episode(movie, season):
         imdb, season=season, episode=selected["episode"])
 
 
-def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None):
+def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None, extended=False):
     """Exibe popup de fontes e entrega a escolhida ao Elementum."""
     from source_client import list_sources
+    started = time.monotonic()
     try:
         if season is not None:
             sources = list_sources(title, year=year, imdb=imdb,
-                                   season=season, episode=episode)
+                                   season=season, episode=episode, quick=not extended)
         else:
-            sources = list_sources(title, year=year, imdb=imdb)
+            sources = list_sources(title, year=year, imdb=imdb, quick=not extended)
+        xbmc.log("Felipe Vídeos: diagnóstico busca de fontes: {:.2f}s, {} resultados, modo={}".format(
+            time.monotonic() - started, len(sources),
+            "completo" if extended else "rápido"), xbmc.LOGINFO)
         if not sources:
             xbmcgui.Dialog().ok(
                 "Nenhuma fonte disponível",
@@ -343,8 +351,15 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None)
                 source["title"], source["source"], source["quality"],
                 size_text, seed_text, language))
         target = "{} S{:02d}E{:02d}".format(title, season, episode) if season is not None else title
+        if not extended and imdb:
+            labels.append("Pesquisar também Cloudflare, MediaFusion e Comet (pode demorar)")
         index = xbmcgui.Dialog().select("Selecionar fonte — {}".format(target), labels)
-        if index is None or index < 0 or index >= len(sources):
+        if index is None or index < 0:
+            return
+        if not extended and imdb and index == len(sources):
+            return choose_cloudflare_source(
+                title, year=year, imdb=imdb, season=season, episode=episode, extended=True)
+        if index >= len(sources):
             return
         selected = sources[index]
         # Se o provedor confirma ausência de seeders, oferecer escolha:
@@ -489,6 +504,7 @@ def build_elementum_url(uri, file_index=None):
 
 def launch_elementum(uri, file_index=None):
     """Solicita uma única reprodução e verifica o aceite do Kodi, não o buffer."""
+    started = time.monotonic()
     if elementum_addon() is None:
         missing_elementum()
         return False
@@ -525,8 +541,8 @@ def launch_elementum(uri, file_index=None):
                             "Não foi possível enviar o torrent ao Kodi. Abra Ferramentas → Testar Elementum.")
         return False
     # Aceite não confirma peers nem vídeo iniciado. Não repetir o envio.
-    xbmc.log("Felipe Vídeos: Elementum Player.Open aceito pelo Kodi (oindex={})".format(
-        file_index), xbmc.LOGINFO)
+    xbmc.log("Felipe Vídeos: Elementum Player.Open aceito pelo Kodi (oindex={}, duração={:.2f}s; buffer não confirmado)".format(
+        file_index, time.monotonic() - started), xbmc.LOGINFO)
     try:
         xbmcgui.Dialog().notification("Elementum", "Solicitação enviada. Aguarde a resolução do torrent.", time=4000)
     except (AttributeError, RuntimeError):
