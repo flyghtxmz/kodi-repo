@@ -144,7 +144,7 @@ class PluginTests(unittest.TestCase):
             } for movie in movies
         }
         cloudflare_stub = types.ModuleType("cloudflare_client")
-        def fake_sources(title, year="", imdb="", season=None, episode=None):
+        def fake_sources(title, year="", imdb="", season=None, episode=None, quick=False):
             calls["lookups"].append((title, imdb, season, episode))
             return source_items if source_items is not None else [{
                 "title": "Vídeo autorizado", "quality": "1080p", "size": 1024,
@@ -347,6 +347,26 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(len(result["play_requests"]), 1)
         self.assertIn("plugin.video.elementum/play?uri=", result["play_requests"][0])
         self.assertEqual(len(result["notifications"]), 1)
+
+    def test_quick_lookup_shows_more_sources_entry(self):
+        result = self.run_addon("recent_detail",
+            query={"identifier": "tt1234567", "media": "movie"},
+            popup_choices=[0, -1])
+        labels = result["popups"][1][1]
+        self.assertIn("Pesquisar também Cloudflare, MediaFusion e Comet", labels[-1])
+        self.assertEqual(len(result["lookups"]), 1)
+        self.assertEqual(result["play_requests"], [])
+        self.assertTrue(any("diagnóstico busca de fontes" in row[0] for row in result["logs"]))
+
+    def test_search_more_sources_reopens_popup_without_new_folder(self):
+        result = self.run_addon("recent_detail",
+            query={"identifier": "tt1234567", "media": "movie"},
+            popup_choices=[0, 1, 0])
+        self.assertEqual(len(result["popups"]), 3)
+        self.assertEqual(len(result["lookups"]), 2)
+        self.assertNotIn("Pesquisar também", result["popups"][2][1][-1])
+        self.assertEqual(len(result["play_requests"]), 1)
+        self.assertEqual(result["items"], [])
 
     def test_zero_seed_source_warns_before_playback(self):
         empty = [{
