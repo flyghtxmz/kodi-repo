@@ -113,6 +113,12 @@ def _language(label):
     if not isinstance(label, str):
         return "unknown"
     normalized = label.casefold()
+    # "Subs EN/PTBR" e "Legenda PT-BR" indicam LEGENDA, não áudio.
+    normalized = re.sub(
+        r"(?i)\b(?:subs?|subtitles?|legendas?|legendado|legendada)"
+        r"[\s._:-]*(?:(?:en(?:glish)?|pt[ ._-]?br|pt|por|portugu[eê]s)"
+        r"(?:\s*/\s*(?:en(?:glish)?|pt[ ._-]?br|pt|por|portugu[eê]s))*)",
+        " ", normalized)
     explicit_br = (
         "🇧🇷" in label or
         re.search(r"(?<![a-z0-9])(?:pt[. _-]?br|br[. _-]?pt|ptbr|brazilian"
@@ -234,9 +240,11 @@ def parse_streams(payload):
             "language": detected_language, "infoHash": infohash,
             # Inclui os trackers devolvidos pelo indexador. Magnet só com
             # infohash pode depender exclusivamente de DHT e atrasar metadata.
-            "url": "magnet:?" + urlencode(
-                [("xt", "urn:btih:" + infohash), ("dn", title)]
-                + [("tr", tracker) for tracker in _trackers(row)]),
+            # libtorrent/Elementum exige xt com separadores ':' literais.
+            # Somente dn/tr recebem urlencode aqui; uri externo é escapado
+            # UMA vez pelo plugin Kodi ao montar /play?uri=...
+            "url": "magnet:?xt=urn:btih:" + infohash + "&" + urlencode(
+                [("dn", title)] + [("tr", tracker) for tracker in _trackers(row)]),
         }
         if file_index is not None:
             source["file_index"] = file_index
