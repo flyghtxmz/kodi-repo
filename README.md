@@ -1,3 +1,12 @@
+## Felipe Vídeos 1.5.3 — dublados e diagnóstico de reprodução
+
+- **PT-BR**: a busca rápida do Torrentio não encerra a pesquisa se não houver áudio brasileiro indicado. Nesse caso também consulta Cloudflare, MediaFusion e Comet (filmes) ou os demais provedores compatíveis (episódios). Isso pode levar alguns segundos a mais em títulos sem PT-BR marcado.
+- Idioma é identificado a partir dos campos explícitos do título, descrição, nome de arquivo e idiomas retornados pelo serviço. **Provedor brasileiro sozinho não prova dublagem.**
+- Na janela de fontes, as entradas PT-BR identificadas recebem o marcador **🔊 PT-BR indicado** e há uma opção **Mostrar somente dublados/PT-BR indicados**. Fontes sem informação aparecem como **Áudio não confirmado**. A indicação depende dos metadados, não é validação real das trilhas do arquivo.
+- **Reprodução**: uma resposta Player.Open: OK não prova que houve início de vídeo. A mensagem agora deixa isso explícito. O Kodi ganhou **Ferramentas > Diagnosticar última reprodução**, que mostra se um vídeo está tocando, nome do provedor, idioma declarado, seeders informados e registros locais, sem exibir magnet/URL do torrent e sem tentar reproduzir de novo.
+- Caso o próprio Elementum não inicie, use **Ferramentas > Testar Elementum**. Problemas de peers, magnet, armazenamento e buffer precisam ser verificados na TV Box; o addon não consegue consertá-los apenas enviando outro comando.
+- Nenhuma mudança foi enviada ao Worker de produção da Cloudflare.
+
 ## Envio ao Elementum (1.5.1)
 
 O popup envia a fonte selecionada por `Player.Open`, verificando o aceite do
