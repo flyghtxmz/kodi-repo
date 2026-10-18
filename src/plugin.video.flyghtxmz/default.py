@@ -411,7 +411,7 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
                 "file_index": selected.get("file_index"),
                 "request": "preparando",
             }, ttl=172800, max_entries=1)
-        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
             pass
         start_cloudflare_play(selected["url"], file_index=selected.get("file_index"))
     except Exception as error:
@@ -588,7 +588,7 @@ def launch_elementum(uri, file_index=None):
             event = {}
         event.update(request="aceito_pelo_kodi", handoff_seconds=round(elapsed, 2))
         local_cache.put("last_playback", "selected", event, ttl=172800, max_entries=1)
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
     try:
         xbmcgui.Dialog().notification(
@@ -657,7 +657,7 @@ def check_last_playback():
         event = local_cache.get("last_playback", "selected")
         if not isinstance(event, dict):
             event = {}
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
         event = {}
     try:
         playing = bool(xbmc.Player().isPlayingVideo())
