@@ -1,3 +1,27 @@
+## Interface fullscreen Felipe Cinema — 1.5.6
+
+Ao abrir Felipe Vídeos, a nova interface fullscreen **Felipe Cinema** cobre a
+skin do Kodi, com navegação por controle remoto, capas, painel de destaque e
+atalhos laterais para Início, Filmes, Séries, Em alta e Busca.
+
+A interface é feita com `xbmcgui.WindowXMLDialog` e o arquivo
+`resources/skins/Default/1080i/FelipeCinema.xml`; **não altera a skin
+global do Kodi**. Títulos são selecionados pelo controle remoto e continuam
+abrindo os popups de temporadas, fontes e trailers existentes, por cima da
+interface. A busca usa IMDb ID, preservando o fluxo do Elementum.
+
+O menu **Menu clássico** permite retornar à navegação antiga sem reinstalar.
+Se o dispositivo ou a skin instalada não suportar a janela, o plugin volta
+ao menu tradicional automaticamente. VOLTAR fecha o Felipe Cinema.
+A primeira abertura de uma categoria consulta seu catálogo; ao selecionar um
+título, o plugin abre a ficha completa. Traduções em cache aparecem de imediato;
+as traduções faltantes são obtidas pela ficha ao abrir o título.
+
+A versão 1.5.6 é uma **primeira interface funcional**: não implementa
+navegação infinita nem telas inteiramente novas de reprodução, e precisa de
+validação real no Kodi 21. Os serviços de fontes e a Cloudflare não foram
+alterados nesta atualização.
+
 ## Novas opções de filmes — 1.5.5
 
 A área **Filmes** agora oferece **Clássicos e nostalgia (por década)** (anos

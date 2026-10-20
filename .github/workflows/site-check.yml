@@ -23,7 +23,7 @@ jobs:
           pages = "https://flyghtxmz.github.io/kodi-repo/"
           raw = "https://raw.githubusercontent.com/flyghtxmz/kodi-repo/main/"
           repo_zip = "repository.flyghtxmz-1.0.3.zip"
-          addon_zip = "plugin.video.flyghtxmz/plugin.video.flyghtxmz-1.5.5.zip"
+          addon_zip = "plugin.video.flyghtxmz/plugin.video.flyghtxmz-1.5.6.zip"
 
           def get(url):
               with urllib.request.urlopen(urllib.request.Request(

@@ -68,6 +68,22 @@ def finish():
 
 
 def show_menu():
+    # Janela fullscreen própria. A skin global permanece intacta; o menu
+    # tradicional é usado no caso de falha ou por escolha explícita.
+    if getattr(xbmcgui, "WindowXMLDialog", None):
+        try:
+            from cinema_gui import launch
+            if launch(lambda identifier, media: show_recent_detail(
+                    identifier, media, finish_directory=False)):
+                finish()
+                return
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as error:
+            xbmc.log("Felipe Vídeos Cinema: fallback para menu clássico ({})".format(
+                type(error).__name__), xbmc.LOGERROR)
+    show_classic_menu()
+
+
+def show_classic_menu():
     xbmcplugin.setContent(HANDLE, "videos")
     add_item("Filmes", "sections", folder=True, media="movie")
     add_item("Séries", "sections", folder=True, media="series")
@@ -282,10 +298,11 @@ def show_subtitles():
         xbmcgui.Dialog().ok("Legendas indisponíveis", "Não foi possível carregar a legenda. Tente novamente mais tarde.")
 
 
-def show_recent_detail(identifier, media):
-    """Abre opções do título como popup sem navegar para outro diretório."""
+def show_recent_detail(identifier, media, finish_directory=True):
+    """Abre popup sem sair do cinema fullscreen ou criar uma pasta."""
     from recent import detail
-    finish()
+    if finish_directory:
+        finish()
     try:
         started = time.monotonic()
         movie = detail(identifier, media=media)
@@ -777,7 +794,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.5.5",
+        "Felipe Vídeos 1.5.6",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
