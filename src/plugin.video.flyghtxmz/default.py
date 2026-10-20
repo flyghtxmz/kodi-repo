@@ -408,15 +408,17 @@ def show_recent_detail(identifier, media, finish_directory=True):
         action = options[index][1]
         checkpoint("opcao_selecionada", identifier, media)
         if isinstance(action, tuple) and action[0] == "season":
-            choose_series_episode(movie, action[1])
+            return choose_series_episode(movie, action[1])
         elif action == "sources":
             # O ID TMDb não é um identificador IMDb: evite enviá-lo ao Worker.
-            choose_cloudflare_source(movie.get("original_title") or movie["title"],
+            return choose_cloudflare_source(movie.get("original_title") or movie["title"],
                                      str(movie.get("year") or "")[:4],
                                      movie.get("imdb_id") or (
                                          identifier if re.fullmatch(r"tt[0-9]{5,12}", identifier) else ""))
         else:
-            perform_recent_action(action, movie)
+            result = perform_recent_action(action, movie)
+            if result:
+                return True
         checkpoint("ficha_concluida", identifier, media)
     except Exception as exc:
         checkpoint("erro_python_" + type(exc).__name__, identifier, media)
@@ -447,7 +449,7 @@ def choose_series_episode(movie, season):
         xbmcgui.Dialog().ok("Identificador inválido",
                             "IMDb ID da série indisponível para buscar este episódio.")
         return
-    choose_cloudflare_source(
+    return choose_cloudflare_source(
         movie.get("original_title") or series_name,
         str(movie.get("year") or "")[:4],
         imdb, season=season, episode=selected["episode"])
@@ -542,7 +544,7 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
             }, ttl=172800, max_entries=1)
         except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
             pass
-        start_cloudflare_play(selected["url"], file_index=selected.get("file_index"))
+        return start_cloudflare_play(selected["url"], file_index=selected.get("file_index"))
     except Exception as error:
         xbmc.log("Felipe Vídeos: consulta de fontes falhou ({})".format(
             type(error).__name__), xbmc.LOGERROR)
@@ -563,7 +565,7 @@ def start_cloudflare_play(url, file_index=None):
     if not is_supported_source(url):
         xbmcgui.Dialog().ok("Fonte inválida", "O link não é um magnet ou torrent compatível.")
         return
-    launch_elementum(url, file_index=file_index)
+    return launch_elementum(url, file_index=file_index)
 
 
 def play_cloudflare_source(url):
@@ -606,6 +608,7 @@ def perform_recent_action(action, movie):
                 "Instale o addon YouTube pelo repositório oficial do Kodi.")
             return
         xbmc.executebuiltin("PlayMedia(plugin://plugin.video.youtube/play/?video_id={})".format(yt_id))
+        return True
     elif action == "recent_where":
         url = justwatch_search_url(movie["title"])
         if xbmcgui.Dialog().yesno("Onde assistir — Brasil",
