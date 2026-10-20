@@ -96,7 +96,7 @@
         <control type="label">
           <left>10</left><top>318</top><width>206</width><height>50</height>
           <font>font12</font><textcolor>FFB9C6D7</textcolor>
-          <align>center</align><aligny>center</align>
+          <align>center</align><aligny>center</aligny>
           <label>$INFO[ListItem.Label]</label>
         </control>
       </itemlayout>
@@ -113,7 +113,7 @@
         <control type="label">
           <left>4</left><top>318</top><width>218</width><height>50</height>
           <font>font12</font><textcolor>FFFFFFFF</textcolor>
-          <align>center</align><aligny>center</align>
+          <align>center</align><aligny>center</aligny>
           <label>$INFO[ListItem.Label]</label>
         </control>
       </focusedlayout>
