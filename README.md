@@ -1,3 +1,21 @@
+## Novas opções de filmes — 1.5.5
+
+A área **Filmes** agora oferece **Clássicos e nostalgia (por década)** (anos
+1920–2010), **Cinema brasileiro**, **Filmes em português** e **Animes e longas
+de animação japonesa**, além das categorias já existentes. A escolha da década
+abre um popup para selecionar o ano, e então o catálogo de filmes daquele ano.
+As capas, os títulos PT-BR, as sinopses no painel e o popup de fontes
+continuam funcionando. A navegação de clássicos é uma organização por
+**ano de lançamento**, não uma classificação crítica de obras-primas.
+
+As opções de cinema brasileiro e idioma/país reutilizam a pesquisa e os
+filtros existentes; a quantidade de títulos depende dos registros do
+Cinemeta e TMDb. A ordem alfabética é mantida por página.
+
+Essa atualização altera apenas **os menus do Kodi**, não o Worker Cloudflare
+nem o motor de reprodução Elementum. Não é uma correção para torrents que
+ficam carregando após a mensagem de solicitação enviada.
+
 ## Versão 1.5.4 — correção de magnet e áudio PT-BR
 
 - Corrigida a passagem de magnet ao Elementum: o identificador `xt=urn:btih:HASH` usa **dois-pontos literais** dentro do magnet, e a URL externa do Kodi é codificada uma única vez. Corrige o caso de log `missing info-hash from URI` com `xt=urn%253Abtih%253A...`.
@@ -6,7 +24,7 @@
 - A busca rápida ainda recorre aos demais provedores quando não encontra áudio PT-BR declarado. A classificação é textual, não confirmação da faixa de áudio.
 - Os testes de código reproduzem o magnet do log e os falsos positivos de legenda; a reprodução real requer validação na TV Box com um torrent autorizado e peers disponíveis.
 
-## Felipe Vídeos 1.5.4 — dublados e diagnóstico de reprodução
+## Felipe Vídeos 1.5.5 — dublados e diagnóstico de reprodução
 
 - **PT-BR**: a busca rápida do Torrentio não encerra a pesquisa se não houver áudio brasileiro indicado. Nesse caso também consulta Cloudflare, MediaFusion e Comet (filmes) ou os demais provedores compatíveis (episódios). Isso pode levar alguns segundos a mais em títulos sem PT-BR marcado.
 - Idioma é identificado a partir dos campos explícitos do título, descrição, nome de arquivo e idiomas retornados pelo serviço. **Provedor brasileiro sozinho não prova dublagem.**

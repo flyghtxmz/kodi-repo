@@ -268,6 +268,34 @@ class PluginTests(unittest.TestCase):
         self.assertIn("filter_kind=language", page["items"][-1]["url"])
         self.assertIn("filter_value=Portuguese", page["items"][-1]["url"])
 
+    def test_movie_decades_have_direct_year_picker_popup(self):
+        decades = self.run_addon("movie_decades")
+        labels = [x["listitem"].label for x in decades["items"]]
+        self.assertEqual(len(labels), 10)
+        self.assertEqual(labels[0], "Filmes dos anos 2010")
+        self.assertEqual(labels[-1], "Filmes dos anos 1920")
+        self.assertTrue(all(not x["isFolder"] for x in decades["items"]))
+        self.assertIn("decade=1980", decades["items"][3]["url"])
+
+        year = self.run_addon("movie_decade_year", query={"decade": "1980"},
+                              popup_choices=[5])
+        self.assertEqual(len(year["popups"]), 1)
+        self.assertEqual(year["popups"][0][1], [str(x) for x in range(1980, 1990)])
+        self.assertIn("filter_kind=year", year["commands"][0])
+        self.assertIn("filter_value=1985", year["commands"][0])
+        self.assertIn("page=1", year["commands"][0])
+
+    def test_invalid_or_cancelled_classic_selection_does_not_navigate(self):
+        for decade, choices in (("1880", [0]), ("bogus", [0]), ("1990", [-1])):
+            with self.subTest(decade=decade):
+                result = self.run_addon("movie_decade_year",
+                                        query={"decade": decade}, popup_choices=choices)
+                self.assertEqual(result["commands"], [])
+        movies = self.run_addon("recent", query={"category": "movies_popular",
+            "filter_kind": "year", "filter_value": "1985"})
+        self.assertTrue(movies["items"])
+        self.assertFalse(movies["items"][0]["isFolder"])
+
     def test_year_picker_validates_and_opens_the_selected_year(self):
         result = self.run_addon("choose_filter", query={"media": "movie", "kind": "year"}, magnet_input="1999")
         self.assertIn("filter_value=1999", result["commands"][0])
@@ -293,8 +321,16 @@ class PluginTests(unittest.TestCase):
         movies = self.run_addon("sections", query={"media": "movie"})
         series = self.run_addon("sections", query={"media": "series"})
         tools = self.run_addon("tools")
-        self.assertEqual(len(movies["items"]), 7)
+        self.assertEqual(len(movies["items"]), 11)
         self.assertEqual(len(series["items"]), 7)
+        self.assertEqual([i["listitem"].label for i in movies["items"][5:9]], [
+            "Clássicos e nostalgia (por década)", "Cinema brasileiro",
+            "Filmes em português", "Animes e longas de animação japonesa"])
+        self.assertIn("movie_decades", movies["items"][5]["url"])
+        self.assertIn("filter_kind=country", movies["items"][6]["url"])
+        self.assertIn("filter_value=Brazil", movies["items"][6]["url"])
+        self.assertIn("filter_kind=language", movies["items"][7]["url"])
+        self.assertIn("filter_kind=anime", movies["items"][8]["url"])
         self.assertEqual(len(tools["items"]), 8)
         self.assertEqual(movies["items"][-1]["listitem"].label, "Explorar catálogo")
         self.assertEqual(series["items"][-1]["listitem"].label, "Explorar catálogo")

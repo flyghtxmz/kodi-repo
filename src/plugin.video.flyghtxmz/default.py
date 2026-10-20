@@ -86,9 +86,45 @@ def show_sections(media):
         if category.startswith(prefix):
             add_item(title.format(year=year, prev_year=year-1, prev2_year=year-2), "recent",
                      folder=True, category=category)
+    if media == "movie":
+        add_item("Clássicos e nostalgia (por década)", "movie_decades", folder=True)
+        add_item("Cinema brasileiro", "recent", folder=True,
+                 category="movies_popular", filter_kind="country", filter_value="Brazil")
+        add_item("Filmes em português", "recent", folder=True,
+                 category="movies_popular", filter_kind="language", filter_value="Portuguese")
+        add_item("Animes e longas de animação japonesa", "recent", folder=True,
+                 category="movies_popular", filter_kind="anime", filter_value="")
     add_item("Gêneros", "genres", folder=True, media=media)
     add_item("Explorar catálogo", "explore", folder=True, media=media)
     finish()
+
+
+def show_movie_decades():
+    """Décadas navegáveis, sem importar listas estáticas de filmes."""
+    xbmcplugin.setContent(HANDLE, "videos")
+    for decade in range(2010, 1910, -10):
+        add_item("Filmes dos anos {}".format(decade),
+                 "movie_decade_year", decade=decade)
+    finish()
+
+
+def choose_movie_decade_year(decade):
+    """Seleciona ano em popup; abre o catálogo real do Cinemeta."""
+    finish()
+    if type(decade) is not int or decade < 1920 or decade > 2010 or decade % 10:
+        xbmcgui.Dialog().ok("Década inválida", "Selecione uma década do menu de clássicos.")
+        return
+    years = [year for year in range(decade, min(decade+10, date.today().year+1))]
+    if not years:
+        return
+    selection = xbmcgui.Dialog().select(
+        "Filmes dos anos {} — escolha o ano".format(decade),
+        [str(year) for year in years])
+    if selection is None or selection < 0 or selection >= len(years):
+        return
+    xbmc.executebuiltin("Container.Update({})".format(plugin_url(
+        "recent", category="movies_popular", filter_kind="year",
+        filter_value=str(years[selection]), page=1)))
 
 
 def show_genres(media):
@@ -741,7 +777,7 @@ def show_help():
 def show_about():
     finish()
     xbmcgui.Dialog().ok(
-        "Felipe Vídeos 1.5.4",
+        "Felipe Vídeos 1.5.5",
         "Integração opcional com Elementum para reproduzir torrents de origem "
         "autorizada sem aguardar o download completo. Peers podem ver seu IP "
         "e o motor pode compartilhar dados durante a reprodução. "
@@ -754,6 +790,14 @@ def main():
     action = params.get("action", [""])[0]
     if action == "sections":
         show_sections(params.get("media", ["movie"])[0])
+    elif action == "movie_decades":
+        show_movie_decades()
+    elif action == "movie_decade_year":
+        try:
+            decade = int(params.get("decade", ["0"])[0])
+        except ValueError:
+            decade = 0
+        choose_movie_decade_year(decade)
     elif action == "genres":
         show_genres(params.get("media", ["movie"])[0])
     elif action == "tools":
