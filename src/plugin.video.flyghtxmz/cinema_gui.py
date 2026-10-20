@@ -1,4 +1,7 @@
-"""Cinema fullscreen: preloaded shelves, deferred actions, bounded pagination."""
+"""Persistent Cinema shell; catalog IO and popups stay outside GUI callbacks."""
+from queue import Queue, Empty, Full
+from threading import Event
+from time import monotonic
 import xbmc
 import xbmcgui
 import xbmcaddon
@@ -12,10 +15,26 @@ BACK_ACTIONS = frozenset((9, 10, 92, 2167))
 
 
 class CinemaWindow(xbmcgui.WindowXMLDialog):
-    """Callbacks only operate controls or close the window; never fetch or open dialogs."""
+    """Callbacks enqueue actions without closing the shell or doing network IO."""
+
+    def prepare(self, model):
+        self.model = model
+        self.loaded = [None] * len(model["shelves"])
+        self.restore_focus = (CONTROL_TABS, 0)
+        self.requests = Queue(maxsize=1)
+        self.ready = Event()
+        self.init_error = None
+        self.busy = True
 
     def onInit(self):
-        self.request = None
+        try:
+            self.render()
+        except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
+            self.init_error = error
+        finally:
+            self.ready.set()
+
+    def render(self):
         self.cards = {}
         self.getControl(CONTROL_NAV).reset()
         self.getControl(CONTROL_NAV).addItems([xbmcgui.ListItem(label=name) for name, _ in NAVIGATION])
@@ -29,6 +48,9 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
         tabs.reset()
         tabs.addItems([xbmcgui.ListItem(label=label) for label, _, _ in self.model["tabs"]])
         for control, spec, data in zip(SHELF_CONTROLS, self.model["shelves"], self.loaded):
+            if data is None:
+                data = {"items": [{"title": "Carregando títulos…", "action": "empty"}],
+                        "page": 1, "more": False, "error": ""}
             self._load(control, spec, data)
         focus, index = self.restore_focus
         available = (CONTROL_NAV, CONTROL_TABS) + SHELF_CONTROLS[:len(self.loaded)]
@@ -36,7 +58,12 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
             focus, index = CONTROL_NAV, nav_index
         self.setFocusId(focus)
         self.getControl(focus).selectItem(max(0, index))
-        self.setProperty("CinemaStatus", "Cinema 1.6.2 • BORDA VERMELHA: seleção • OK: abrir • ←→: navegar • ↑↓: fileiras")
+        self.set_busy(self.busy)
+
+    def set_busy(self, busy, message="Carregando…"):
+        self.busy = busy
+        self.setProperty("CinemaStatus", message if busy else
+                         "Cinema 1.6.3 • BORDA VERMELHA: seleção • OK: abrir • ←→: navegar • ↑↓: fileiras")
 
     def _load(self, control, spec, data):
         row = SHELF_CONTROLS.index(control) + 1
@@ -67,11 +94,18 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
         self.setProperty("CinemaHasRow{}".format(row), "true")
 
     def _queue(self, request, control):
+        if self.busy:
+            return
         self.restore_focus = (control, self.getControl(control).getSelectedPosition())
-        self.request = request
-        self.close()
+        self.set_busy(True)
+        try:
+            self.requests.put_nowait(request)
+        except Full:
+            pass
 
     def onClick(self, controlId):
+        if self.busy or controlId not in (CONTROL_NAV, CONTROL_TABS) + SHELF_CONTROLS:
+            return
         selected = self.getControl(controlId).getSelectedPosition()
         if controlId == CONTROL_NAV and 0 <= selected < len(NAVIGATION):
             self._queue(("navigate", NAVIGATION[selected][1], ""), controlId)
@@ -90,96 +124,111 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
 
     def onAction(self, action):
         if action.getId() in BACK_ACTIONS:
-            self.request = ("back", "", "")
-            self.close()
+            self._queue(("back", "", ""), CONTROL_NAV)
 
 
 def launch(on_select):
-    """All IO/popups happen between modal lifetimes, never in UI callbacks.
+    """Keep one shell visible during IO, paging and child dialogs.
 
-    on_select returns True only when playback was handed off, so cancelling a
-    title returns to the same shelf/page without racing the asynchronous player.
+    show() returns to this controller rather than blocking like doModal(). Kodi
+    callbacks only enqueue requests; the plugin thread handles IO and dialogs.
+    Only exit, explicit native mode or playback closes the Cinema window.
     """
     path = xbmcaddon.Addon().getAddonInfo("path")
     if not path:
         return False
-    route, value = "home", ""
-    model = screen(route, value)
-    loaded = [None] * len(model["shelves"])
-    focus = (CONTROL_TABS, 0)
-    while True:
-        for index, spec in enumerate(model["shelves"]):
-            if loaded[index] is not None:
-                continue
-            # No modal cinema window exists while a catalog is loading.
-            progress = xbmcgui.DialogProgress()
-            try:
-                progress.create("Felipe Cinema", "Carregando " + spec["label"] + "…")
-                loaded[index] = load_shelf(spec, 1)
-            except (OSError, ValueError, TypeError, RuntimeError) as error:
-                xbmc.log("Felipe Cinema: catálogo indisponível ({})".format(type(error).__name__), xbmc.LOGERROR)
-                loaded[index] = {"items": [], "page": 1, "more": False,
-                                 "error": "Catálogo indisponível. Tente novamente ou escolha outra seção."}
-            finally:
-                progress.close()
-        window = None
-        try:
-            window = CinemaWindow("FelipeCinema.xml", path, "Default", "1080i")
-            window.model, window.loaded, window.restore_focus = model, loaded, focus
-            window.doModal()
-            request = window.request
-            focus = window.restore_focus
-        except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
-            xbmc.log("Felipe Cinema: falha de interface ({})".format(type(error).__name__), xbmc.LOGERROR)
-            xbmcgui.Dialog().ok("Felipe Cinema indisponível",
-                "A janela Cinema não pôde ser mantida. Reabra o addon para tentar novamente. "
-                "Se necessário, desative Cinema em Configurar → Interface.")
-            return True
-        finally:
-            if window is not None:
-                del window
-        if not request:
-            return True
-        action, target, extra = request
-        if action == "select":
-            try:
-                if on_select(target, extra):
-                    return True
-            except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
-                xbmc.log("Felipe Cinema: falha na ficha ({})".format(type(error).__name__), xbmc.LOGERROR)
-                xbmcgui.Dialog().ok("Título indisponível", "Não foi possível abrir a ficha. Escolha outro título.")
-            continue
-        if action == "page":
-            index, page = target, extra
-            progress = xbmcgui.DialogProgress()
-            try:
-                progress.create("Felipe Cinema", "Carregando página {}…".format(page))
-                new_page = load_shelf(model["shelves"][index], page)
-                if new_page.get("error") and loaded[index].get("items"):
-                    xbmcgui.Dialog().ok("Página indisponível", "A página anterior foi mantida.")
-                else:
-                    loaded[index] = new_page
-            except (OSError, ValueError, TypeError, RuntimeError):
-                # Keep the previous page; a temporary outage must not erase it.
-                xbmcgui.Dialog().ok("Página indisponível", "Tente novamente em instantes.")
-            finally:
-                progress.close()
-            focus = (SHELF_CONTROLS[index], 0)
-            continue
-        if action == "back":
-            if route == "home":
+    window = None
+    try:
+        monitor = xbmc.Monitor()
+        window = CinemaWindow("FelipeCinema.xml", path, "Default", "1080i")
+        window.prepare(screen("home", ""))
+        window.show()
+        deadline = monotonic() + 15
+        while not window.ready.is_set():
+            if monitor.waitForAbort(0.05):
                 return True
-            target, extra = "home", ""
-        if target == "exit":
-            return True
-        if target == "classic":
-            return False
-        if target == "search":
-            term = xbmcgui.Dialog().input("Buscar filmes e séries", type=xbmcgui.INPUT_ALPHANUM)
-            if not term or not term.strip():
+            if monotonic() >= deadline:
+                raise RuntimeError("Cinema initialization timed out")
+        if window.init_error is not None:
+            raise window.init_error
+        route = "home"
+        while not monitor.abortRequested():
+            # The shell is already visible, including on the first catalog load.
+            for index, spec in enumerate(window.model["shelves"]):
+                if window.loaded[index] is not None:
+                    continue
+                if monitor.abortRequested():
+                    return True
+                window.set_busy(True, "Carregando " + spec["label"] + "…")
+                try:
+                    window.loaded[index] = load_shelf(spec, 1)
+                except (OSError, ValueError, TypeError, RuntimeError) as error:
+                    xbmc.log("Felipe Cinema: catálogo indisponível ({})".format(type(error).__name__), xbmc.LOGERROR)
+                    window.loaded[index] = {"items": [], "page": 1, "more": False,
+                        "error": "Catálogo indisponível. Tente novamente ou escolha outra seção."}
+                window.render()
+            window.set_busy(False)
+            while not monitor.abortRequested():
+                try:
+                    request = window.requests.get_nowait()
+                    break
+                except Empty:
+                    if monitor.waitForAbort(0.05):
+                        return True
+            else:
+                return True
+            action, target, extra = request
+            if action == "select":
+                try:
+                    if on_select(target, extra):
+                        return True
+                except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
+                    xbmc.log("Felipe Cinema: falha na ficha ({})".format(type(error).__name__), xbmc.LOGERROR)
+                    xbmcgui.Dialog().ok("Título indisponível", "Não foi possível abrir a ficha. Escolha outro título.")
+                # Retain both page caches and the selected poster after cancellation.
+                window.render()
                 continue
-            target, extra = "search_results", term.strip()[:80]
-        route, value = target, extra
-        model = screen(route, value)
-        loaded = [None] * len(model["shelves"])
-        focus = (CONTROL_POSTERS, 0)
+            if action == "page":
+                index, page = target, extra
+                previous_focus = window.restore_focus
+                window.set_busy(True, "Carregando página {}…".format(page))
+                try:
+                    new_page = load_shelf(window.model["shelves"][index], page)
+                    if new_page.get("error") and window.loaded[index].get("items"):
+                        xbmcgui.Dialog().ok("Página indisponível", "A página anterior foi mantida.")
+                    else:
+                        window.loaded[index] = new_page
+                        window.restore_focus = (SHELF_CONTROLS[index], 0)
+                except (OSError, ValueError, TypeError, RuntimeError):
+                    window.restore_focus = previous_focus
+                    xbmcgui.Dialog().ok("Página indisponível", "Tente novamente em instantes.")
+                window.render()
+                continue
+            if action == "back":
+                if route == "home":
+                    return True
+                target, extra = "home", ""
+            if target == "exit":
+                return True
+            if target == "classic":
+                return False
+            if target == "search":
+                term = xbmcgui.Dialog().input("Buscar filmes e séries", type=xbmcgui.INPUT_ALPHANUM)
+                if not term or not term.strip():
+                    continue
+                target, extra = "search_results", term.strip()[:80]
+            route = target
+            window.model = screen(route, extra)
+            window.loaded = [None] * len(window.model["shelves"])
+            window.restore_focus = (CONTROL_POSTERS, 0)
+            window.render()
+        return True
+    except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
+        xbmc.log("Felipe Cinema: falha de interface ({})".format(type(error).__name__), xbmc.LOGERROR)
+        xbmcgui.Dialog().ok("Felipe Cinema indisponível",
+            "A janela Cinema não pôde ser mantida. Reabra o addon para tentar novamente. "
+            "Se necessário, desative Cinema em Configurar → Interface.")
+        return True
+    finally:
+        if window is not None:
+            window.close()

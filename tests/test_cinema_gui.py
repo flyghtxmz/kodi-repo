@@ -13,14 +13,48 @@ sys.path.insert(0, str(ADDON))
 import cinema_catalog as catalog
 
 
+class FakeControl:
+    def __init__(self):
+        self.position = 0
+        self.items = []
+    def reset(self):
+        self.items = []
+    def addItems(self, items):
+        self.items.extend(items)
+    def selectItem(self, position):
+        self.position = min(position, max(0, len(self.items) - 1))
+    def getSelectedPosition(self):
+        return self.position
+
+
+class FakeWindow:
+    def __init__(self, *args):
+        self.controls = {}
+        self.properties = {}
+        self.visible = False
+    def getControl(self, cid):
+        return self.controls.setdefault(cid, FakeControl())
+    def setProperty(self, name, value):
+        self.properties[name] = value
+    def setFocusId(self, cid):
+        self.focus = cid
+    def show(self):
+        self.visible = True
+        self.onInit()
+    def close(self):
+        self.visible = False
+
+
 class CinemaTests(unittest.TestCase):
-    def module(self, window=object, events=None):
+    def module(self, window=FakeWindow, events=None):
         events = events if events is not None else []
         xbmc = types.ModuleType('xbmc')
         xbmc.LOGINFO, xbmc.LOGERROR = 1, 3
         xbmc.log = lambda *args: None
+        xbmc.Monitor = lambda: types.SimpleNamespace(abortRequested=lambda: False, waitForAbort=lambda seconds: False)
         gui = types.ModuleType('xbmcgui')
         gui.WindowXMLDialog = window
+        gui.ListItem = lambda **kwargs: types.SimpleNamespace(setArt=lambda *args: None, setInfo=lambda *args: None, setProperty=lambda *args: None)
         gui.INPUT_ALPHANUM = 0
         gui.Dialog = lambda: types.SimpleNamespace(ok=lambda *args: events.append('error'), input=lambda *args, **kw: 'Alien')
         gui.DialogProgress = lambda: types.SimpleNamespace(create=lambda *args: events.append('loading'), close=lambda: events.append('loaded'))
@@ -55,51 +89,80 @@ class CinemaTests(unittest.TestCase):
         self.assertEqual(controls['410'].findtext('onup'), '400')
         self.assertEqual(controls['10'].findtext('width'), '1920')
 
-    def test_click_callbacks_only_queue_and_close(self):
-        events = []
-        class FakeWindow:
-            def getControl(self, cid):
-                return types.SimpleNamespace(getSelectedPosition=lambda: 0)
-            def close(self):
-                events.append('closed')
-        module = self.module(FakeWindow)
+    def test_callbacks_queue_without_closing_or_fetching_and_ignore_busy_clicks(self):
+        module = self.module()
         win = module.CinemaWindow()
-        win.model = catalog.screen()
+        win.prepare(catalog.screen())
+        win.show()
         win.cards = {400: [{'id': 'tt1234567', 'media': 'movie', 'title': 'Movie'}]}
+        win.set_busy(False)
         with patch.object(module, 'load_shelf', side_effect=AssertionError('IO in callback')):
             win.onClick(400)
-            self.assertEqual(win.request, ('select', 'tt1234567', 'movie'))
+            win.onClick(200)  # Duplicate remote inputs must not replace the pending action.
+            self.assertEqual(win.requests.get_nowait(), ('select', 'tt1234567', 'movie'))
+            self.assertTrue(win.requests.empty())
+            self.assertTrue(win.visible)
+            win.set_busy(False)
             win.onClick(200)
-            self.assertEqual(win.request, ('navigate', 'platform', 'nfx'))
-        self.assertEqual(events, ['closed', 'closed'])
+            self.assertEqual(win.requests.get_nowait(), ('navigate', 'platform', 'nfx'))
+            win.set_busy(False)
+            win.onAction(types.SimpleNamespace(getId=lambda: 92))
+            self.assertEqual(win.requests.get_nowait(), ('back', '', ''))
+            self.assertTrue(win.visible)
 
-    def run_controller(self, requests, on_select=None, fail_page=False):
-        events, snapshots = [], []
-        requests = iter(requests)
-        class FakeWindow:
+    def run_controller(self, requests, on_select=None, fail_page=False, fail_initial=False,
+                       cancel_search=False, abort=False, init_error=False, error_page=False):
+        events, snapshots, windows = [], [], []
+        pending = iter(requests)
+        class TrackedWindow(FakeWindow):
             def __init__(self, *args):
+                super().__init__(*args)
                 events.append('window_created')
-            def doModal(self):
-                snapshots.append((self.model, self.loaded[:], self.restore_focus))
-                self.request = next(requests)
-                if self.request[0] == 'select':
-                    self.restore_focus = (400, 7)
+                windows.append(self)
+            def show(self):
+                super().show()
+                events.append('window_shown')
+                if init_error:
+                    self.init_error = RuntimeError('missing control')
+            def close(self):
+                super().close()
                 events.append('window_closed')
-            def __del__(self):
-                events.append('window_destroyed')
-        module = self.module(FakeWindow, events)
+        module = self.module(TrackedWindow, events)
+        def dispatch(seconds):
+            if abort:
+                return True
+            win = windows[0]
+            self.assertTrue(win.visible)
+            self.assertFalse(win.busy)
+            snapshots.append((win.model, win.loaded[:], win.restore_focus))
+            request = next(pending)
+            if request[0] == 'select':
+                win.restore_focus = (400, 7)
+            win.set_busy(True)
+            win.requests.put_nowait(request)
+            return False
+        module.xbmc.Monitor = lambda: types.SimpleNamespace(abortRequested=lambda: abort, waitForAbort=dispatch)
+        if cancel_search:
+            module.xbmcgui.Dialog = lambda: types.SimpleNamespace(input=lambda *args, **kw: '')
         def load(spec, page):
-            self.assertEqual(events.count('window_created'), events.count('window_destroyed'))
-            if fail_page and page == 2:
+            win = windows[0]
+            self.assertTrue(win.visible, 'Native Kodi must never be exposed during catalog IO')
+            self.assertTrue(win.busy)
+            self.assertEqual(events.count('window_closed'), 0)
+            if (fail_page and page == 2) or fail_initial:
                 raise OSError('offline')
-            return {'items': [{'id':'tt1234567','media':spec['media'],'title':'Movie','poster':'','plot':''}],
-                    'more': True, 'page':page, 'error':''}
+            return {'items': [{'id':'tt1234567','media':spec['media'],'title':'Movie','poster':'','plot':''} for _ in range(10)],
+                    'more': True, 'page':page, 'error':'offline' if error_page and page == 2 else ''}
         def select(*args):
-            self.assertEqual(events[-1], 'window_destroyed')
+            self.assertTrue(windows[0].visible, 'Cinema must remain underneath child dialogs')
+            self.assertTrue(windows[0].busy)
             events.append('selected')
             return on_select(*args) if on_select else None
         with patch.object(module, 'load_shelf', side_effect=load) as loader:
             result = module.launch(select)
+        self.assertEqual(events.count('window_created'), 1)
+        self.assertEqual(events.count('window_closed'), 1)
+        self.assertFalse(windows[0].visible)
         return result, snapshots, events, loader
 
     def test_cancelled_detail_restores_page_and_focus_without_reloading(self):
@@ -136,8 +199,8 @@ class CinemaTests(unittest.TestCase):
             ('page',0,2), ('page',0,3), ('page',0,2), ('navigate','exit','')])
         self.assertTrue(result)
         self.assertEqual([frame[1][0]['page'] for frame in frames], [1,2,3,2])
-        self.assertEqual(events.count('window_created'), 4)
-        self.assertEqual(events.count('window_destroyed'), 4)
+        self.assertEqual(events.count('window_created'), 1)
+        self.assertEqual(events.count('window_closed'), 1)
         self.assertEqual(loader.call_count, 5)
 
     def test_page_failure_does_not_trigger_native_fallback(self):
@@ -145,6 +208,29 @@ class CinemaTests(unittest.TestCase):
             ('page',0,2), ('navigate','exit','')], fail_page=True)
         self.assertTrue(result)
         self.assertEqual(frames[-1][1][0]['page'], 1)
+
+    def test_cancelled_search_keeps_page_without_reloading(self):
+        _, frames, _, loader = self.run_controller([
+            ('page',0,2), ('navigate','search',''), ('navigate','exit','')], cancel_search=True)
+        self.assertEqual(frames[-1][1][0]['page'], 2)
+        self.assertEqual(loader.call_count, 3)
+
+    def test_initial_catalog_failure_stays_in_cinema_with_retry(self):
+        result, frames, _, _ = self.run_controller([('navigate','exit','')], fail_initial=True)
+        self.assertTrue(result)
+        self.assertTrue(frames[0][1][0]['error'])
+
+    def test_error_response_keeps_previous_page(self):
+        _, frames, _, _ = self.run_controller([
+            ('page',0,2), ('navigate','exit','')], error_page=True)
+        self.assertEqual(frames[-1][1][0]['page'], 1)
+
+    def test_abort_and_initialization_failure_close_once_without_loading(self):
+        for options in ({'abort': True}, {'init_error': True}):
+            with self.subTest(options=options):
+                result, _, _, loader = self.run_controller([], **options)
+                self.assertTrue(result)
+                loader.assert_not_called()
 
     def test_focus_ribbon_is_visible_in_both_shelves(self):
         root = ET.parse(ADDON / 'resources/skins/Default/1080i/FelipeCinema.xml').getroot()

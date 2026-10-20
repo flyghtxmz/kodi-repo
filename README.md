@@ -1,3 +1,20 @@
+## Felipe Cinema 1.6.3 — janela contínua durante a navegação
+
+Corrige o intervalo em que o menu nativo aparecia ao trocar de página ou seção.
+Agora uma única janela Cinema permanece aberta desde o carregamento inicial,
+com o progresso na própria barra inferior. Próxima/anterior página atualiza as
+fileiras nessa janela; cancelar a ficha ou a busca preserva a página e o foco.
+Uma falha de rede mantém os resultados anteriores e permite tentar novamente.
+
+Cinema continua ativado por padrão em **Configurar → Interface**. A janela só
+fecha ao sair, escolher **Menu nativo** ou entregar a reprodução ao player.
+Os callbacks apenas agendam ações: consultas e diálogos são executados pelo
+controlador, sem fazer chamadas de rede dentro de `onClick`/`onInit`.
+
+Os testes simulam a janela visível durante as consultas e os diálogos, além de
+validar paginação, cancelamento, falhas e encerramento. O resultado gráfico e a
+estabilidade no Kodi da TV Box ainda precisam ser conferidos no aparelho.
+
 ## Felipe Cinema 1.6.2 — modo padrão e navegação persistente
 
 Cinema está ativado por padrão, inclusive após atualizar a versão anterior.
