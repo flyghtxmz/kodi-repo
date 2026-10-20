@@ -44,10 +44,10 @@ class DiagnosticTests(unittest.TestCase):
     def test_crash_report_reads_previous_session_without_leaking_urls(self):
         with tempfile.TemporaryDirectory() as directory:
             (Path(directory) / "kodi.log").write_text(
-                "INFO unrelated service\\n", encoding="utf-8")
+                "INFO unrelated service\n", encoding="utf-8")
             (Path(directory) / "kodi.old.log").write_text(
-                "ERROR Felipe Vídeos Cinema: erro ao selecionar título\\n"
-                "ERROR elementum magnet:?xt=urn:btih:secret&token=private\\n",
+                "ERROR Felipe Vídeos Cinema: erro ao selecionar título\n"
+                "ERROR elementum magnet:?xt=urn:btih:secret&token=private\n",
                 encoding="utf-8")
             module = self.load(str(Path(directory) / "kodi.log"))
             module.xbmcvfs.translatePath = lambda target: str(
