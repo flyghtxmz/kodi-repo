@@ -157,8 +157,10 @@ def launch(on_select):
     if classic:
         return False
     if selection:
+        xbmc.log("Felipe Vídeos Cinema: janela encerrada; abrindo opções do título fora do onClick", xbmc.LOGINFO)
         try:
             on_select(*selection)
+            xbmc.log("Felipe Vídeos Cinema: retornou da seleção do título", xbmc.LOGINFO)
         except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
             xbmc.log("Felipe Vídeos Cinema: falha ao selecionar título ({})".format(
                 type(error).__name__), xbmc.LOGERROR)

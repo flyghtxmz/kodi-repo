@@ -70,7 +70,10 @@ def finish():
 def show_menu():
     # Janela fullscreen própria. A skin global permanece intacta; o menu
     # tradicional é usado no caso de falha ou por escolha explícita.
-    if getattr(xbmcgui, "WindowXMLDialog", None):
+    # Permite desativar a interface cinema sem desinstalar o addon
+    # caso a build Kodi/Android tenha incompatibilidade gráfica nativa.
+    cinema_setting = ADDON.getSetting("cinema_enabled").strip().lower()
+    if cinema_setting not in ("false", "0", "no") and getattr(xbmcgui, "WindowXMLDialog", None):
         try:
             from cinema_gui import launch
             if launch(lambda identifier, media: show_recent_detail(
