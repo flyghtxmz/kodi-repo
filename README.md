@@ -1,3 +1,17 @@
+## Felipe Vídeos 1.5.7 — estabilidade no Kodi Android
+
+- **Cinema:** ao selecionar um pôster, a janela fullscreen modal é encerrada
+  antes de abrir o popup nativo do Kodi e antes de enviar a reprodução ao Elementum.
+  Evita diálogos sobrepostos dentro de `WindowXMLDialog.onClick`, uma fonte
+  potencial de instabilidade em builds Android.
+- **Modo seguro:** em **Configurar → Interface**, desative **Usar a interface
+  Felipe Cinema** para retornar ao menu clássico, sem remover o addon.
+- **Diagnóstico:** o leitor de logs inclui `kodi.old.log` quando disponível
+  para investigar o fechamento inesperado. Logs e testes não comprovam a causa
+  nativa de todo crash; se persistir, será necessário analisar o log do aparelho.
+- **Reprodução:** a mensagem "Solicitação enviada" significa apenas que o Kodi
+  aceitou o comando. Não garante que o magnet foi resolvido ou que havia peers.
+
 ## Interface fullscreen Felipe Cinema — 1.5.6
 
 Ao abrir Felipe Vídeos, a nova interface fullscreen **Felipe Cinema** cobre a
