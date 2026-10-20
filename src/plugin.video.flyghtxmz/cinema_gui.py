@@ -46,6 +46,7 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
     def onInit(self):
         self.movies = []
         self.classic_requested = False
+        self.pending_selection = None
         self.getControl(CONTROL_NAV).addItems(
             [xbmcgui.ListItem(label=label) for label, _ in NAVIGATION])
         self._load("movies_popular", "Em destaque")
@@ -116,10 +117,11 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
             selected = self.getControl(CONTROL_POSTERS).getSelectedPosition()
             if 0 <= selected < len(self.movies):
                 movie = self.movies[selected]
-                try:
-                    self.on_select(movie["id"], movie["media"])
-                except (OSError, RuntimeError, TypeError, ValueError):
-                    xbmcgui.Dialog().ok("Filme indisponível", "Não foi possível abrir as opções do título.")
+                # Não abra outro diálogo/modal enquanto WindowXMLDialog.onClick
+                # está ativo. Algumas builds Kodi Android podem fechar ao
+                # sobrepor as janelas ou iniciar Player.Open de dentro daqui.
+                self.pending_selection = (movie["id"], movie["media"])
+                self.close()
 
     def onAction(self, action):
         if action.getId() in BACK_ACTIONS:
@@ -127,21 +129,39 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
 
 
 def launch(on_select):
-    """True: sai da janela fullscreen. False: solicita menu clássico."""
+    """Executa o popup somente depois que a janela cinema foi encerrada.
+
+    True significa janela usada e saída normal; False solicita menu clássico.
+    Não chama outros diálogos dentro de onClick/da janela modal.
+    """
     addon = xbmcaddon.Addon()
     path = addon.getAddonInfo("path")
     if not path:
         return False
     window = None
+    selection = None
+    classic = False
     try:
         window = CinemaWindow("FelipeCinema.xml", path, "Default", "1080i")
-        window.on_select = on_select
         window.doModal()
-        return not window.classic_requested
-    except (OSError, RuntimeError, TypeError, ValueError) as error:
-        xbmc.log("Felipe Vídeos Cinema: não foi possível iniciar ({})".format(
+        selection = getattr(window, "pending_selection", None)
+        classic = bool(getattr(window, "classic_requested", False))
+    except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
+        xbmc.log("Felipe Vídeos Cinema: falha ao abrir tela ({})".format(
             type(error).__name__), xbmc.LOGERROR)
         return False
     finally:
-        if window:
+        if window is not None:
+            # Destruir o objeto modal antes de invocar UI ou reprodução.
             del window
+    if classic:
+        return False
+    if selection:
+        try:
+            on_select(*selection)
+        except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
+            xbmc.log("Felipe Vídeos Cinema: falha ao selecionar título ({})".format(
+                type(error).__name__), xbmc.LOGERROR)
+            xbmcgui.Dialog().ok("Filme indisponível",
+                                "Não foi possível abrir as opções do título.")
+    return True
