@@ -222,26 +222,30 @@ def detail(identifier, media="movie"):
     except (ImportError, OSError, ValueError, TypeError):
         local_cache = None
         cached = None
-    meta = cached if isinstance(cached, dict) and normalize(cached, media) else None
+    def matches(candidate):
+        normalized = normalize(candidate, media)
+        return normalized and normalized["id"] == identifier and normalized["type"] == media
+
+    meta = cached if isinstance(cached, dict) and matches(cached) else None
     if meta is None:
         try:
             payload = fetch(BASE + "/meta/{}/{}.json".format(media, identifier))
             meta = (payload.get("meta") or {}) if isinstance(payload, dict) else {}
         except (OSError, ValueError, TypeError):
             meta = {}
-        if not normalize(meta, media):
+        if not matches(meta):
             try:
                 from discovery import metadata
                 meta = metadata(identifier, media)
             except (ImportError, OSError, ValueError, TypeError):
                 raise ValueError("Detalhes indisponíveis.")
-        if local_cache is not None and normalize(meta, media):
+        if local_cache is not None and matches(meta):
             try:
                 local_cache.put("title_details", key, meta, ttl=900, max_entries=16)
             except (OSError, ValueError, TypeError):
                 pass
     value = normalize(meta, media)
-    if not value:
+    if not value or not matches(meta):
         raise ValueError("Detalhes indisponíveis.")
     trailers = meta.get("trailerStreams") or meta.get("trailers") or []
     trailer_id = ""
