@@ -3,8 +3,8 @@
     <section id="plugin.video.flyghtxmz">
         <category id="appearance" label="Interface">
             <group id="1">
-                <setting id="cinema_opt_in_v2" type="boolean" label="Interface Cinema experimental (padrão: navegação nativa)">
-                    <default>false</default>
+                <setting id="cinema_default_v3" type="boolean" label="Usar interface Felipe Cinema (padrão)">
+                    <default>true</default>
                     <control type="toggle"/>
                 </setting>
             </group>

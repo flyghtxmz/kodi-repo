@@ -1,3 +1,12 @@
+## Felipe Cinema 1.6.2 — modo padrão e navegação persistente
+
+Cinema está ativado por padrão, inclusive após atualizar a versão anterior.
+A configuração `cinema_default_v3` permite desativá-lo manualmente em
+**Configurar → Interface**. Próxima/anterior página mantém a própria janela
+Cinema e a fileira original. Erros não trocam automaticamente para o modo
+nativo, e um problema de rede preserva a página anterior. O foco de um
+pôster agora tem faixa **▶ SELECIONADO** e borda vermelha.
+
 ## Felipe Cinema 1.6.1 — início e navegação dentro da interface Cinema
 
 A alteração 1.6.0 ampliou apenas o menu nativo. A 1.6.1 refaz a própria tela Cinema:

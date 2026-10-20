@@ -131,6 +131,28 @@ class CinemaTests(unittest.TestCase):
         self.assertEqual(states[-1][0]['nav'], 'home')
         self.assertFalse(self.run_controller([('navigate','classic','')])[0])
 
+    def test_next_page_and_previous_page_stay_in_cinema(self):
+        result, frames, events, loader = self.run_controller([
+            ('page',0,2), ('page',0,3), ('page',0,2), ('navigate','exit','')])
+        self.assertTrue(result)
+        self.assertEqual([frame[1][0]['page'] for frame in frames], [1,2,3,2])
+        self.assertEqual(events.count('window_created'), 4)
+        self.assertEqual(events.count('window_destroyed'), 4)
+        self.assertEqual(loader.call_count, 5)
+
+    def test_page_failure_does_not_trigger_native_fallback(self):
+        result, frames, _, _ = self.run_controller([
+            ('page',0,2), ('navigate','exit','')], fail_page=True)
+        self.assertTrue(result)
+        self.assertEqual(frames[-1][1][0]['page'], 1)
+
+    def test_focus_ribbon_is_visible_in_both_shelves(self):
+        root = ET.parse(ADDON / 'resources/skins/Default/1080i/FelipeCinema.xml').getroot()
+        for cid in ('400','410'):
+            control = root.find("./controls/control[@id='{}']".format(cid))
+            labels = [x.text for x in control.findall('./focusedlayout/control/label')]
+            self.assertIn('▶ SELECIONADO', labels)
+
     def test_bad_metadata_is_not_passed_to_kodi(self):
         self.assertEqual(catalog.compact_catalog([{'id':'tmdb:3','type':'movie','title':'bad'}], {}), [])
         rows = catalog.compact_catalog([{'id':'tt1234567','type':'movie','title':34,'plot':{},'poster':[]}], {})

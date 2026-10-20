@@ -36,7 +36,7 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
             focus, index = CONTROL_NAV, nav_index
         self.setFocusId(focus)
         self.getControl(focus).selectItem(max(0, index))
-        self.setProperty("CinemaStatus", "Cinema 1.6.1 • OK: abrir • ↑↓: trocar fileira • Voltar: início / sair")
+        self.setProperty("CinemaStatus", "Cinema 1.6.2 • BORDA VERMELHA: seleção • OK: abrir • ←→: navegar • ↑↓: fileiras")
 
     def _load(self, control, spec, data):
         row = SHELF_CONTROLS.index(control) + 1
@@ -60,6 +60,7 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
             item.setArt({"poster": poster, "thumb": poster})
             item.setInfo("video", {"title": movie["title"], "plot": movie.get("plot") or ""})
             item.setProperty("CinemaAction", "true" if movie.get("action") else "")
+            item.setProperty("CinemaNavigation", "página" if movie.get("action") == "page" else "")
             items.append(item)
         self.getControl(control).reset()
         self.getControl(control).addItems(items)
@@ -130,7 +131,10 @@ def launch(on_select):
             focus = window.restore_focus
         except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
             xbmc.log("Felipe Cinema: falha de interface ({})".format(type(error).__name__), xbmc.LOGERROR)
-            return False
+            xbmcgui.Dialog().ok("Felipe Cinema indisponível",
+                "A janela Cinema não pôde ser mantida. Reabra o addon para tentar novamente. "
+                "Se necessário, desative Cinema em Configurar → Interface.")
+            return True
         finally:
             if window is not None:
                 del window
@@ -150,9 +154,12 @@ def launch(on_select):
             progress = xbmcgui.DialogProgress()
             try:
                 progress.create("Felipe Cinema", "Carregando página {}…".format(page))
-                loaded[index] = load_shelf(model["shelves"][index], page)
+                new_page = load_shelf(model["shelves"][index], page)
+                if new_page.get("error") and loaded[index].get("items"):
+                    xbmcgui.Dialog().ok("Página indisponível", "A página anterior foi mantida.")
+                else:
+                    loaded[index] = new_page
             except (OSError, ValueError, TypeError, RuntimeError):
-                progress.close()
                 # Keep the previous page; a temporary outage must not erase it.
                 xbmcgui.Dialog().ok("Página indisponível", "Tente novamente em instantes.")
             finally:

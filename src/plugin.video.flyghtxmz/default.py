@@ -95,8 +95,9 @@ def show_menu(force_cinema=False):
     # tradicional é usado no caso de falha ou por escolha explícita.
     # Permite desativar a interface cinema sem desinstalar o addon
     # caso a build Kodi/Android tenha incompatibilidade gráfica nativa.
-    cinema_setting = ADDON.getSetting("cinema_opt_in_v2").strip().lower()
-    if (force_cinema or cinema_setting == "true") and getattr(xbmcgui, "WindowXMLDialog", None):
+    # Cinema é o padrão; a configuração v3 supera a opção experimental antiga.
+    cinema_setting = ADDON.getSetting("cinema_default_v3").strip().lower()
+    if (force_cinema or cinema_setting != "false") and getattr(xbmcgui, "WindowXMLDialog", None):
         try:
             from cinema_gui import launch
             if launch(lambda identifier, media: show_recent_detail(
