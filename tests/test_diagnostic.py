@@ -48,6 +48,7 @@ class DiagnosticTests(unittest.TestCase):
             (Path(directory) / "kodi.old.log").write_text(
                 "ERROR Felipe Vídeos Cinema: erro ao selecionar título\n"
                 "ERROR elementum magnet:?xt=urn:btih:secret&token=private\n",
+                "ERROR Elementum magnet:?xt=urn:btih:abcdef&dn=private\n",
                 encoding="utf-8")
             module = self.load(str(Path(directory) / "kodi.log"))
             module.xbmcvfs.translatePath = lambda target: str(
