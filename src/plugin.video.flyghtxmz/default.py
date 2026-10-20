@@ -67,13 +67,36 @@ def finish():
     xbmcplugin.endOfDirectory(HANDLE, cacheToDisc=False)
 
 
-def show_menu():
+def checkpoint(stage, identifier="", media=""):
+    """Persist last UI stage so a native crash leaves a useful breadcrumb."""
+    xbmc.log("Felipe Vídeos: etapa={} id={} tipo={}".format(stage, identifier, media), xbmc.LOGINFO)
+    try:
+        import local_cache
+        local_cache.put("last_navigation", "stage", {
+            "stage": stage, "id": identifier, "media": media,
+            "at": time.strftime("%Y-%m-%d %H:%M:%S")}, ttl=604800, max_entries=1)
+    except (ImportError, AttributeError, OSError, RuntimeError, ValueError, TypeError):
+        pass
+
+
+def show_navigation_diagnostic():
+    finish()
+    import local_cache
+    entry = local_cache.get("last_navigation", "stage") or {}
+    xbmcgui.Dialog().textviewer("Última operação do addon", "Etapa: {}\nTítulo IMDb: {}\nTipo: {}\nHorário local: {}\n\n"
+        "Este registro mostra até onde o addon chegou; não confirma a causa do fechamento. "
+        "Se o Kodi fechou, preserve também kodi.old.log antes de reiniciar novamente."
+        .format(entry.get("stage", "Sem registro"), entry.get("id", ""),
+                entry.get("media", ""), entry.get("at", "")))
+
+
+def show_menu(force_cinema=False):
     # Janela fullscreen própria. A skin global permanece intacta; o menu
     # tradicional é usado no caso de falha ou por escolha explícita.
     # Permite desativar a interface cinema sem desinstalar o addon
     # caso a build Kodi/Android tenha incompatibilidade gráfica nativa.
-    cinema_setting = ADDON.getSetting("cinema_enabled").strip().lower()
-    if cinema_setting not in ("false", "0", "no") and getattr(xbmcgui, "WindowXMLDialog", None):
+    cinema_setting = ADDON.getSetting("cinema_opt_in_v2").strip().lower()
+    if (force_cinema or cinema_setting == "true") and getattr(xbmcgui, "WindowXMLDialog", None):
         try:
             from cinema_gui import launch
             if launch(lambda identifier, media: show_recent_detail(
@@ -88,11 +111,50 @@ def show_menu():
 
 def show_classic_menu():
     xbmcplugin.setContent(HANDLE, "videos")
+    add_item("Buscar filmes e séries", "recent_search")
+    add_item("Em alta hoje e nesta semana", "trending", folder=True)
+    add_item("Por plataforma — Netflix, Prime Video, Apple TV+…", "platforms", folder=True)
     add_item("Filmes", "sections", folder=True, media="movie")
     add_item("Séries", "sections", folder=True, media="series")
-    add_item("Buscar filmes e séries", "recent_search")
     add_item("Ferramentas", "tools", folder=True)
     add_item("Sobre o Felipe Vídeos", "about")
+    finish()
+
+
+def show_trending():
+    xbmcplugin.setContent(HANDLE, "videos")
+    for media, label in (("movie", "Filmes"), ("series", "Séries")):
+        for period, suffix in (("Day", "hoje"), ("Week", "nesta semana")):
+            add_item(label + " em alta " + suffix, "recent", folder=True,
+                     category="series_popular" if media == "series" else "movies_popular",
+                     filter_kind="trending", filter_value=period)
+    finish()
+
+
+def show_platforms(media="", provider=""):
+    from discovery import PLATFORMS
+    xbmcplugin.setContent(HANDLE, "videos")
+    if provider:
+        platform = next((row for row in PLATFORMS if row[1] == provider), None)
+        if platform is None:
+            finish()
+            return
+        for kind, label in (("movie", "Filmes populares"), ("series", "Séries populares")):
+            add_item(label + " — " + platform[0], "recent", folder=True,
+                     category="series_popular" if kind == "series" else "movies_popular",
+                     filter_kind="platform", filter_value=provider,
+                     info={"plot": "Popularidade TMDb; referência regional: " + platform[2] +
+                           ". Não é o ranking oficial. Consulte Onde assistir no Brasil na ficha."})
+    else:
+        for label, code, region in PLATFORMS:
+            info = {"plot": "Filmes e séries populares. Catálogo de referência: " + region +
+                    ". Disponibilidade no Brasil pode variar."}
+            if media in ("movie", "series"):
+                add_item(label, "recent", folder=True, info=info,
+                         category="series_popular" if media == "series" else "movies_popular",
+                         filter_kind="platform", filter_value=code)
+            else:
+                add_item(label, "platforms", folder=True, provider=code, info=info)
     finish()
 
 
@@ -101,6 +163,7 @@ def show_sections(media):
     year = date.today().year
     prefix = "series_" if media == "series" else "movies_"
     xbmcplugin.setContent(HANDLE, "videos")
+    add_item("Por plataforma", "platforms", folder=True, media=media)
     for category, title in CATEGORIES:
         if category.startswith(prefix):
             add_item(title.format(year=year, prev_year=year-1, prev2_year=year-2), "recent",
@@ -164,8 +227,10 @@ def show_tools():
     add_item("Diagnosticar última reprodução", "playback_check")
     add_item("Como instalar o Elementum", "elementum_help")
     add_item("Diagnóstico de conexão", "diagnostic")
+    add_item("Diagnosticar fechamento — última operação", "navigation_diagnostic")
     add_item("Legendas PT-BR do título selecionado", "subtitles")
     add_item("Configurações avançadas", "settings")
+    add_item("Experimentar interface Cinema", "cinema")
     finish()
 
 
@@ -204,7 +269,8 @@ def show_recent(category, page=1, term="", filter_kind="", filter_value=""):
             value = unicodedata.normalize("NFKD", row[0].casefold())
             return ("".join(c for c in value if not unicodedata.combining(c)),
                     row[2]["id"])
-        rendered.sort(key=az)
+        if filter_kind not in ("platform", "trending"):
+            rendered.sort(key=az)
         for label, plot, movie in rendered:
             info = {"title": label, "plot": plot, "plotoutline": plot,
                     "mediatype": "tvshow" if movie["type"] == "series" else "movie",
@@ -308,6 +374,7 @@ def show_recent_detail(identifier, media, finish_directory=True):
         finish()
     try:
         started = time.monotonic()
+        checkpoint("consultando_ficha", identifier, media)
         movie = detail(identifier, media=media)
         xbmc.log("Felipe Vídeos: diagnóstico ficha de título: {:.2f}s".format(
             time.monotonic() - started), xbmc.LOGINFO)
@@ -324,6 +391,7 @@ def show_recent_detail(identifier, media, finish_directory=True):
         if movie.get("trailer_id"):
             options.append(("Ver trailer", "recent_trailer"))
         options.append(("Onde assistir no Brasil", "recent_where"))
+        options.append(("Sinopse e detalhes", "recent_info"))
         rating = movie.get("rating") or "Indisponível"
         rating_label = rating + "/10" if rating != "Indisponível" else rating
         heading = "{} ({}) | IMDb: {}".format(
@@ -332,10 +400,13 @@ def show_recent_detail(identifier, media, finish_directory=True):
             xbmcgui.Dialog().ok("Episódios indisponíveis",
                                 "Não há temporadas ou episódios cadastrados para esta série.")
             return
+        checkpoint("abrindo_opcoes", identifier, media)
         index = xbmcgui.Dialog().select(heading, [label for label, _ in options])
         if index is None or index < 0 or index >= len(options):
+            checkpoint("ficha_cancelada", identifier, media)
             return
         action = options[index][1]
+        checkpoint("opcao_selecionada", identifier, media)
         if isinstance(action, tuple) and action[0] == "season":
             choose_series_episode(movie, action[1])
         elif action == "sources":
@@ -346,7 +417,9 @@ def show_recent_detail(identifier, media, finish_directory=True):
                                          identifier if re.fullmatch(r"tt[0-9]{5,12}", identifier) else ""))
         else:
             perform_recent_action(action, movie)
+        checkpoint("ficha_concluida", identifier, media)
     except Exception as exc:
+        checkpoint("erro_python_" + type(exc).__name__, identifier, media)
         xbmc.log("Felipe Vídeos: popup do título falhou ({})".format(
             type(exc).__name__), xbmc.LOGERROR)
         xbmcgui.Dialog().ok("Detalhes indisponíveis", "Não foi possível abrir as opções deste título.")
@@ -808,7 +881,13 @@ def show_about():
 def main():
     params = parse_qs(sys.argv[2].lstrip("?")) if len(sys.argv) > 2 else {}
     action = params.get("action", [""])[0]
-    if action == "sections":
+    if action == "platforms":
+        show_platforms(params.get("media", [""])[0], params.get("provider", [""])[0])
+    elif action == "trending":
+        show_trending()
+    elif action == "cinema":
+        show_menu(force_cinema=True)
+    elif action == "sections":
         show_sections(params.get("media", ["movie"])[0])
     elif action == "movie_decades":
         show_movie_decades()
@@ -854,6 +933,8 @@ def main():
         finish()
         from diagnostic import run_diagnostic
         xbmcgui.Dialog().textviewer("Diagnóstico Felipe Addons", run_diagnostic())
+    elif action == "navigation_diagnostic":
+        show_navigation_diagnostic()
     elif action == "torrent_input":
         open_magnet_dialog()
     elif action == "elementum_settings":

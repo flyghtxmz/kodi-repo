@@ -1,3 +1,32 @@
+## Felipe Vídeos 1.6.0 — catálogo por plataforma e navegação nativa
+
+- Início com busca, tendências do dia/semana, plataformas, filmes, séries e ferramentas.
+- Netflix, Prime Video, Apple TV+, Disney+, HBO Max, Paramount+, Globoplay e Crunchyroll,
+  com filmes/séries separados, paginação e nomes/sinopses PT-BR quando fornecidos.
+- Listas de plataforma preservam a popularidade do TMDb; tendências usam o catálogo
+  diário/semanal do TMDb. Não são rankings oficiais dos serviços.
+- As plataformas usam as regiões do provedor público: Netflix/Apple/Disney GB,
+  Prime/Paramount/Crunchyroll US, HBO Max NL e Globoplay BR. O menu informa essa
+  referência; consulte “Onde assistir no Brasil” na ficha para disponibilidade local.
+  Uma plataforma pode retornar uma lista vazia ou ficar indisponível.
+- Navegação nativa como padrão também após atualizar da 1.5.7. A configuração antiga
+  de Cinema não é reaproveitada. A interface experimental continua em Ferramentas
+  ou Configurar → Interface, mediante nova escolha do usuário.
+- Fichas rejeitam respostas/cache com outro IMDb ID ou tipo de mídia. A opção
+  “Sinopse e detalhes” fica no popup do título.
+- Ferramentas → Diagnosticar fechamento registra a última etapa da ficha, ID e horário,
+  sem salvar links de reprodução. Ajuda a investigar um fechamento nativo;
+  não substitui kodi.old.log nem identifica sozinho a causa.
+- A reprodução continua a cargo do Elementum. Não é possível validar crashes de
+  drivers, decodificação ou do binário Elementum nos testes Python fora do aparelho.
+
+Atualize o repositório no Kodi e instale Felipe Vídeos **1.6.0**. O instalador
+atual também está em https://flyghtxmz.github.io/kodi-repo/.
+
+Referência do catálogo: https://github.com/mrcanelas/tmdb-addon
+
+### Histórico
+
 ## Felipe Vídeos 1.5.7 — estabilidade no Kodi Android
 
 - **Cinema:** ao selecionar um pôster, a janela fullscreen modal é encerrada

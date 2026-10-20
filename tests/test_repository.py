@@ -224,6 +224,7 @@ class PluginTests(unittest.TestCase):
         cache_stub.get = lambda *args: {"imdb": "tt1234567", "title": "Filme recente"}
         discovery_stub = types.ModuleType("discovery")
         discovery_stub.LANGUAGES = (("Português", "Portuguese"), ("Inglês", "English"))
+        discovery_stub.PLATFORMS = (("Netflix", "nfx", "GB"), ("Prime Video", "amp", "US"), ("Apple TV+", "atp", "GB"))
         discovery_stub.COUNTRIES = (("Brasil — português", "Brazil", "Portuguese"),)
         discovery_stub.list_titles = lambda media, kind, value, page=1: ([{
             "id": "tt1234567", "type": media, "title": "Título localizado", "year": "2002",
@@ -251,10 +252,11 @@ class PluginTests(unittest.TestCase):
 
     def test_main_menu_is_short_and_categorized(self):
         result = self.run_addon()
-        self.assertEqual(len(result["items"]), 5)
+        self.assertEqual(len(result["items"]), 7)
         labels = [i["listitem"].label for i in result["items"]]
-        self.assertEqual(labels, ["Filmes", "Séries", "Buscar filmes e séries",
-                                  "Ferramentas", "Sobre o Felipe Vídeos"])
+        self.assertEqual(labels, ["Buscar filmes e séries", "Em alta hoje e nesta semana",
+                                  "Por plataforma — Netflix, Prime Video, Apple TV+…",
+                                  "Filmes", "Séries", "Ferramentas", "Sobre o Felipe Vídeos"])
         self.assertEqual(len(result["ends"]), 1)
         self.assertNotIn("Archive", " ".join(labels))
         self.assertNotIn("demo", " ".join(i["url"] for i in result["items"]))
@@ -267,6 +269,31 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(page["items"][0]["listitem"].label, "Título localizado")
         self.assertIn("filter_kind=language", page["items"][-1]["url"])
         self.assertIn("filter_value=Portuguese", page["items"][-1]["url"])
+
+    def test_platform_menu_routes_and_pagination(self):
+        root = self.run_addon("platforms")
+        self.assertEqual([x["listitem"].label for x in root["items"]],
+                         ["Netflix", "Prime Video", "Apple TV+"])
+        provider = self.run_addon("platforms", query={"provider": "nfx"})
+        self.assertEqual(len(provider["items"]), 2)
+        self.assertIn("category=series_popular", provider["items"][1]["url"])
+        page = self.run_addon("recent", query={"category": "series_popular",
+            "filter_kind": "platform", "filter_value": "nfx", "page": "2"})
+        target = page["items"][-1]["url"]
+        self.assertIn("page=3", target)
+        self.assertIn("filter_value=nfx", target)
+        self.assertIn("filter_kind=platform", target)
+        self.assertIn("category=series_popular", target)
+        invalid = self.run_addon("platforms", query={"provider": "invalid"})
+        self.assertEqual(invalid["items"], [])
+        self.assertEqual(len(invalid["ends"]), 1)
+
+    def test_trends_offer_both_periods_and_media_types(self):
+        result = self.run_addon("trending")
+        self.assertEqual(len(result["items"]), 4)
+        self.assertIn("filter_value=Day", result["items"][0]["url"])
+        self.assertIn("filter_value=Week", result["items"][3]["url"])
+        self.assertIn("category=series_popular", result["items"][3]["url"])
 
     def test_movie_decades_have_direct_year_picker_popup(self):
         decades = self.run_addon("movie_decades")
@@ -321,17 +348,17 @@ class PluginTests(unittest.TestCase):
         movies = self.run_addon("sections", query={"media": "movie"})
         series = self.run_addon("sections", query={"media": "series"})
         tools = self.run_addon("tools")
-        self.assertEqual(len(movies["items"]), 11)
-        self.assertEqual(len(series["items"]), 7)
-        self.assertEqual([i["listitem"].label for i in movies["items"][5:9]], [
+        self.assertEqual(len(movies["items"]), 12)
+        self.assertEqual(len(series["items"]), 8)
+        self.assertEqual([i["listitem"].label for i in movies["items"][6:10]], [
             "Clássicos e nostalgia (por década)", "Cinema brasileiro",
             "Filmes em português", "Animes e longas de animação japonesa"])
-        self.assertIn("movie_decades", movies["items"][5]["url"])
-        self.assertIn("filter_kind=country", movies["items"][6]["url"])
-        self.assertIn("filter_value=Brazil", movies["items"][6]["url"])
-        self.assertIn("filter_kind=language", movies["items"][7]["url"])
-        self.assertIn("filter_kind=anime", movies["items"][8]["url"])
-        self.assertEqual(len(tools["items"]), 8)
+        self.assertIn("movie_decades", movies["items"][6]["url"])
+        self.assertIn("filter_kind=country", movies["items"][7]["url"])
+        self.assertIn("filter_value=Brazil", movies["items"][7]["url"])
+        self.assertIn("filter_kind=language", movies["items"][8]["url"])
+        self.assertIn("filter_kind=anime", movies["items"][9]["url"])
+        self.assertEqual(len(tools["items"]), 10)
         self.assertEqual(movies["items"][-1]["listitem"].label, "Explorar catálogo")
         self.assertEqual(series["items"][-1]["listitem"].label, "Explorar catálogo")
         film_genres = self.run_addon("genres", query={"media": "movie"})
@@ -370,7 +397,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(result["items"], [])
         self.assertEqual(len(result["popups"]), 1)
         self.assertEqual(result["popups"][0][1],
-            ["Buscar fontes", "Ver trailer", "Onde assistir no Brasil"])
+            ["Buscar fontes", "Ver trailer", "Onde assistir no Brasil", "Sinopse e detalhes"])
         self.assertEqual(result["commands"], [])
 
     def test_popup_source_selection_starts_elementum(self):

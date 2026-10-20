@@ -9,6 +9,49 @@ import local_cache
 from metadata_ptbr import TMDB_STREMIO_BASE
 import recent
 
+# Regions are those used by the upstream catalog; these are not official charts.
+PLATFORMS = (("Netflix", "nfx", "GB"), ("Prime Video", "amp", "US"),
+             ("Apple TV+", "atp", "GB"), ("Disney+", "dnp", "GB"),
+             ("HBO Max", "hbm", "NL"), ("Paramount+", "pmp", "US"),
+             ("Globoplay", "gop", "BR"), ("Crunchyroll", "cru", "US"))
+
+
+def platform_titles(media, kind, value, page):
+    """Paged popular provider catalogs or actual daily/weekly TMDb trends."""
+    if kind == "platform":
+        if value not in {row[1] for row in PLATFORMS}:
+            raise ValueError("Plataforma inválida.")
+        catalog, extra = "tmdb." + value, ""
+    elif kind == "trending" and value in ("Day", "Week"):
+        catalog, extra = "tmdb.trending", "genre=" + value + "&"
+    else:
+        raise ValueError("Filtro inválido.")
+    key = "{}:{}:{}:{}".format(media, kind, value, page)
+    cached = local_cache.get("platform_pages", key)
+    if isinstance(cached, dict) and isinstance(cached.get("items"), list):
+        return cached["items"], bool(cached.get("more"))
+    payload = fetch(TMDB_STREMIO_BASE + "/catalog/{}/{}/{}skip={}.json".format(
+        media, catalog, extra, (page - 1) * 20))
+    rows = payload.get("metas") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("Catálogo da plataforma indisponível.")
+    items, seen = [], set()
+    for row in rows[:20]:
+        if not isinstance(row, dict) or row.get("type") not in (None, media):
+            continue
+        if row.get("id") == "tmdb:no-content" and row.get("name") == "Error Loading Content":
+            raise ValueError("O serviço de catálogo está temporariamente indisponível.")
+        identifier = imdb_for(row)
+        item = recent.normalize({**row, "imdb_id": identifier}, media) if identifier else None
+        if item and identifier not in seen:
+            # Upstream imdbRating can be a TMDb score: do not mislabel it.
+            item["rating"] = ""
+            seen.add(identifier)
+            items.append(item)
+    more = len(rows) >= 20 and page < 100
+    local_cache.put("platform_pages", key, {"items": items, "more": more}, ttl=3600, max_entries=64)
+    return items, more
+
 LANGUAGES = (("Português", "Portuguese"), ("Inglês", "English"), ("Espanhol", "Spanish"),
              ("Francês", "French"), ("Japonês", "Japanese"), ("Coreano", "Korean"),
              ("Italiano", "Italian"), ("Alemão", "German"), ("Hindi", "Hindi"), ("Mandarim", "Mandarin"))
@@ -27,7 +70,7 @@ def fetch(url):
     cinemeta = parsed.hostname == "v3-cinemeta.strem.io" and bool(re.fullmatch(r"/meta/(movie|series)/tt[0-9]{5,12}\.json", parsed.path))
     if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443) or not (tmdb or cinemeta):
         raise ValueError("Origem de catálogo inválida.")
-    with urlopen(Request(url, headers={"User-Agent": "FelipeVideos/1.5.0 (Kodi)", "Accept": "application/json"}), timeout=3 if cinemeta else 5) as response:
+    with urlopen(Request(url, headers={"User-Agent": "FelipeVideos/1.6.0 (Kodi)", "Accept": "application/json"}), timeout=3 if cinemeta else 15) as response:
         raw = response.read(2_000_001)
     if len(raw) > 2_000_000:
         raise ValueError("Catálogo excedeu o limite.")
@@ -107,6 +150,8 @@ def list_titles(media, kind, value, page=1):
     if media not in ("movie", "series"):
         raise ValueError("Tipo de catálogo inválido.")
     page = max(1, min(int(page), 100))
+    if kind in ("platform", "trending"):
+        return platform_titles(media, kind, value, page)
     skip = (page - 1) * 20
     if kind == "year":
         if not re.fullmatch(r"[12][0-9]{3}", str(value)) or not 1874 <= int(value) <= recent.date.today().year + 1:

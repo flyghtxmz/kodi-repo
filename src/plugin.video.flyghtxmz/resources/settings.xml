@@ -3,8 +3,8 @@
     <section id="plugin.video.flyghtxmz">
         <category id="appearance" label="Interface">
             <group id="1">
-                <setting id="cinema_enabled" type="boolean" label="Usar a interface Felipe Cinema (desative se o Kodi fechar)">
-                    <default>true</default>
+                <setting id="cinema_opt_in_v2" type="boolean" label="Interface Cinema experimental (padrão: navegação nativa)">
+                    <default>false</default>
                     <control type="toggle"/>
                 </setting>
             </group>
