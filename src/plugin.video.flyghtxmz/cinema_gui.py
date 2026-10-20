@@ -1,169 +1,178 @@
-"""Interface Felipe Cinema fullscreen em XML, mantendo a skin global Kodi."""
+"""Cinema fullscreen: preloaded shelves, deferred actions, bounded pagination."""
 import xbmc
 import xbmcgui
 import xbmcaddon
+from cinema_catalog import NAVIGATION, compact_catalog, screen, load_shelf
 
-NAVIGATION = [
-    ("Início", "movies_popular"),
-    ("Filmes", "movies_new"),
-    ("Séries", "series_popular"),
-    ("Em alta", "movies_popular"),
-    ("Buscar", "search"),
-    ("Menu clássico", "classic"),
-    ("Sair", "exit"),
-]
 CONTROL_NAV = 100
+CONTROL_TABS = 200
 CONTROL_POSTERS = 400
+SHELF_CONTROLS = (400, 410)
 BACK_ACTIONS = frozenset((9, 10, 92, 2167))
 
 
-def compact_catalog(movies, localized):
-    """Usa os mesmos IMDb IDs e tipos do catálogo já existente."""
-    result = []
-    for movie in movies[:20]:
-        if not isinstance(movie, dict):
-            continue
-        identifier = movie.get("id")
-        media = movie.get("type")
-        if not isinstance(identifier, str) or media not in ("movie", "series"):
-            continue
-        cached = localized.get("{}:{}".format(media, identifier), {})
-        if not isinstance(cached, dict):
-            cached = {}
-        result.append({
-            "id": identifier,
-            "media": media,
-            "title": (cached.get("title") or movie.get("title") or "Sem título")[:150],
-            "plot": (cached.get("plot") or "Selecione o título para consultar a sinopse em português.")[:800],
-            "poster": movie.get("poster") or "",
-        })
-    return result
-
-
 class CinemaWindow(xbmcgui.WindowXMLDialog):
-    """Janela modal no lugar do menu de pastas. Controle remoto e voltar suportados."""
+    """Callbacks only operate controls or close the window; never fetch or open dialogs."""
 
     def onInit(self):
-        self.movies = []
-        self.classic_requested = False
-        self.pending_selection = None
-        self.getControl(CONTROL_NAV).addItems(
-            [xbmcgui.ListItem(label=label) for label, _ in NAVIGATION])
-        self._load("movies_popular", "Em destaque")
+        self.request = None
+        self.cards = {}
+        self.getControl(CONTROL_NAV).reset()
+        self.getControl(CONTROL_NAV).addItems([xbmcgui.ListItem(label=name) for name, _ in NAVIGATION])
+        nav_index = next((i for i, (_, key) in enumerate(NAVIGATION) if key == self.model["nav"]), 0)
+        self.getControl(CONTROL_NAV).selectItem(nav_index)
+        self.setProperty("CinemaSection", self.model["title"])
+        self.setProperty("CinemaNote", self.model["note"])
+        self.setProperty("CinemaHasTabs", "true" if self.model["tabs"] else "")
+        self.setProperty("CinemaHasRow2", "")
+        tabs = self.getControl(CONTROL_TABS)
+        tabs.reset()
+        tabs.addItems([xbmcgui.ListItem(label=label) for label, _, _ in self.model["tabs"]])
+        for control, spec, data in zip(SHELF_CONTROLS, self.model["shelves"], self.loaded):
+            self._load(control, spec, data)
+        focus, index = self.restore_focus
+        available = (CONTROL_NAV, CONTROL_TABS) + SHELF_CONTROLS[:len(self.loaded)]
+        if focus not in available or (focus == CONTROL_TABS and not self.model["tabs"]):
+            focus, index = CONTROL_NAV, nav_index
+        self.setFocusId(focus)
+        self.getControl(focus).selectItem(max(0, index))
+        self.setProperty("CinemaStatus", "Cinema 1.6.1 • OK: abrir • ↑↓: trocar fileira • Voltar: início / sair")
 
-    def _load(self, category, heading, search_term=""):
-        self.setProperty("CinemaSection", heading)
-        self.setProperty("CinemaStatus", "Carregando catálogo…")
-        try:
-            from recent import list_titles
-            from metadata_ptbr import _read_cache
-            titles, more = list_titles(category, page=1, search_term=search_term)
-            raw_cache = _read_cache()
-            cached = {}
-            for movie in titles[:20]:
-                key = "{}:{}".format(movie.get("type"), movie.get("id"))
-                entry = raw_cache.get(key)
-                if isinstance(entry, dict):
-                    cached[key] = {
-                        "title": entry.get("localized_title") or "",
-                        "plot": entry.get("description") or "",
-                    }
-            self.movies = compact_catalog(titles, cached)
-            cards = []
-            for movie in self.movies:
-                item = xbmcgui.ListItem(label=movie["title"])
-                item.setArt({"poster": movie["poster"], "thumb": movie["poster"]})
-                item.setInfo("video", {"title": movie["title"], "plot": movie["plot"]})
-                cards.append(item)
-            control = self.getControl(CONTROL_POSTERS)
-            control.reset()
-            if cards:
-                control.addItems(cards)
-            self.setProperty("CinemaStatus", "{} títulos{}     •     OK para abrir".format(
-                len(cards), " — primeira página" if more else ""))
-            self.setFocusId(CONTROL_POSTERS if cards else CONTROL_NAV)
-        except (OSError, ValueError, TypeError, RuntimeError) as error:
-            self.movies = []
-            self.getControl(CONTROL_POSTERS).reset()
-            self.setProperty("CinemaStatus", "Catálogo temporariamente indisponível. Use outra seção.")
-            xbmc.log("Felipe Vídeos Cinema: falha ao carregar ({})".format(
-                type(error).__name__), xbmc.LOGERROR)
-            self.setFocusId(CONTROL_NAV)
+    def _load(self, control, spec, data):
+        row = SHELF_CONTROLS.index(control) + 1
+        heading = "{}  ·  página {}".format(spec["label"], data["page"])
+        self.setProperty("CinemaRow{}".format(row), heading)
+        entries = []
+        if data["page"] > 1:
+            entries.append({"title": "← Página anterior", "action": "page", "page": data["page"]-1})
+        entries.extend(data["items"])
+        if data["more"]:
+            entries.append({"title": "Próxima página →", "action": "page", "page": data["page"]+1})
+        if data["error"]:
+            entries.append({"title": "Tentar novamente", "action": "page", "page": data["page"], "plot": data["error"]})
+        elif not data["items"]:
+            entries.append({"title": "Nenhum título nesta página", "action": "empty", "plot": "Escolha outra plataforma, categoria ou página."})
+        self.cards[control] = entries
+        items = []
+        for movie in entries:
+            item = xbmcgui.ListItem(label=movie["title"])
+            poster = movie.get("poster") or ""
+            item.setArt({"poster": poster, "thumb": poster})
+            item.setInfo("video", {"title": movie["title"], "plot": movie.get("plot") or ""})
+            item.setProperty("CinemaAction", "true" if movie.get("action") else "")
+            items.append(item)
+        self.getControl(control).reset()
+        self.getControl(control).addItems(items)
+        self.setProperty("CinemaHasRow{}".format(row), "true")
 
-    def _navigate(self, selection):
-        if selection < 0 or selection >= len(NAVIGATION):
-            return
-        heading, category = NAVIGATION[selection]
-        if category == "exit":
-            self.close()
-        elif category == "classic":
-            self.classic_requested = True
-            self.close()
-        elif category == "search":
-            text = xbmcgui.Dialog().input("Buscar filmes ou séries", type=xbmcgui.INPUT_ALPHANUM)
-            if not text or not text.strip():
-                return
-            media = xbmcgui.Dialog().select("Tipo de conteúdo", ["Filmes", "Séries"])
-            if media in (0, 1):
-                self._load("search_movie" if media == 0 else "search_series",
-                           "Busca: " + text.strip()[:50], text.strip()[:80])
-        else:
-            self._load(category, heading)
+    def _queue(self, request, control):
+        self.restore_focus = (control, self.getControl(control).getSelectedPosition())
+        self.request = request
+        self.close()
 
     def onClick(self, controlId):
-        if controlId == CONTROL_NAV:
-            self._navigate(self.getControl(CONTROL_NAV).getSelectedPosition())
-        elif controlId == CONTROL_POSTERS:
-            selected = self.getControl(CONTROL_POSTERS).getSelectedPosition()
-            if 0 <= selected < len(self.movies):
-                movie = self.movies[selected]
-                # Não abra outro diálogo/modal enquanto WindowXMLDialog.onClick
-                # está ativo. Algumas builds Kodi Android podem fechar ao
-                # sobrepor as janelas ou iniciar Player.Open de dentro daqui.
-                self.pending_selection = (movie["id"], movie["media"])
-                self.close()
+        selected = self.getControl(controlId).getSelectedPosition()
+        if controlId == CONTROL_NAV and 0 <= selected < len(NAVIGATION):
+            self._queue(("navigate", NAVIGATION[selected][1], ""), controlId)
+        elif controlId == CONTROL_TABS and 0 <= selected < len(self.model["tabs"]):
+            _, route, value = self.model["tabs"][selected]
+            self._queue(("navigate", route, value), controlId)
+        elif controlId in SHELF_CONTROLS:
+            entries = self.cards.get(controlId, [])
+            if not 0 <= selected < len(entries):
+                return
+            movie = entries[selected]
+            if movie.get("action") == "page":
+                self._queue(("page", SHELF_CONTROLS.index(controlId), movie["page"]), controlId)
+            elif not movie.get("action"):
+                self._queue(("select", movie["id"], movie["media"]), controlId)
 
     def onAction(self, action):
         if action.getId() in BACK_ACTIONS:
+            self.request = ("back", "", "")
             self.close()
 
 
 def launch(on_select):
-    """Executa o popup somente depois que a janela cinema foi encerrada.
+    """All IO/popups happen between modal lifetimes, never in UI callbacks.
 
-    True significa janela usada e saída normal; False solicita menu clássico.
-    Não chama outros diálogos dentro de onClick/da janela modal.
+    on_select returns True only when playback was handed off, so cancelling a
+    title returns to the same shelf/page without racing the asynchronous player.
     """
-    addon = xbmcaddon.Addon()
-    path = addon.getAddonInfo("path")
+    path = xbmcaddon.Addon().getAddonInfo("path")
     if not path:
         return False
-    window = None
-    selection = None
-    classic = False
-    try:
-        window = CinemaWindow("FelipeCinema.xml", path, "Default", "1080i")
-        window.doModal()
-        selection = getattr(window, "pending_selection", None)
-        classic = bool(getattr(window, "classic_requested", False))
-    except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
-        xbmc.log("Felipe Vídeos Cinema: falha ao abrir tela ({})".format(
-            type(error).__name__), xbmc.LOGERROR)
-        return False
-    finally:
-        if window is not None:
-            # Destruir o objeto modal antes de invocar UI ou reprodução.
-            del window
-    if classic:
-        return False
-    if selection:
-        xbmc.log("Felipe Vídeos Cinema: janela encerrada; abrindo opções do título fora do onClick", xbmc.LOGINFO)
+    route, value = "home", ""
+    model = screen(route, value)
+    loaded = [None] * len(model["shelves"])
+    focus = (CONTROL_TABS, 0)
+    while True:
+        for index, spec in enumerate(model["shelves"]):
+            if loaded[index] is not None:
+                continue
+            # No modal cinema window exists while a catalog is loading.
+            progress = xbmcgui.DialogProgress()
+            try:
+                progress.create("Felipe Cinema", "Carregando " + spec["label"] + "…")
+                loaded[index] = load_shelf(spec, 1)
+            except (OSError, ValueError, TypeError, RuntimeError) as error:
+                xbmc.log("Felipe Cinema: catálogo indisponível ({})".format(type(error).__name__), xbmc.LOGERROR)
+                loaded[index] = {"items": [], "page": 1, "more": False,
+                                 "error": "Catálogo indisponível. Tente novamente ou escolha outra seção."}
+            finally:
+                progress.close()
+        window = None
         try:
-            on_select(*selection)
-            xbmc.log("Felipe Vídeos Cinema: retornou da seleção do título", xbmc.LOGINFO)
+            window = CinemaWindow("FelipeCinema.xml", path, "Default", "1080i")
+            window.model, window.loaded, window.restore_focus = model, loaded, focus
+            window.doModal()
+            request = window.request
+            focus = window.restore_focus
         except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
-            xbmc.log("Felipe Vídeos Cinema: falha ao selecionar título ({})".format(
-                type(error).__name__), xbmc.LOGERROR)
-            xbmcgui.Dialog().ok("Filme indisponível",
-                                "Não foi possível abrir as opções do título.")
-    return True
+            xbmc.log("Felipe Cinema: falha de interface ({})".format(type(error).__name__), xbmc.LOGERROR)
+            return False
+        finally:
+            if window is not None:
+                del window
+        if not request:
+            return True
+        action, target, extra = request
+        if action == "select":
+            try:
+                if on_select(target, extra):
+                    return True
+            except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
+                xbmc.log("Felipe Cinema: falha na ficha ({})".format(type(error).__name__), xbmc.LOGERROR)
+                xbmcgui.Dialog().ok("Título indisponível", "Não foi possível abrir a ficha. Escolha outro título.")
+            continue
+        if action == "page":
+            index, page = target, extra
+            progress = xbmcgui.DialogProgress()
+            try:
+                progress.create("Felipe Cinema", "Carregando página {}…".format(page))
+                loaded[index] = load_shelf(model["shelves"][index], page)
+            except (OSError, ValueError, TypeError, RuntimeError):
+                progress.close()
+                # Keep the previous page; a temporary outage must not erase it.
+                xbmcgui.Dialog().ok("Página indisponível", "Tente novamente em instantes.")
+            finally:
+                progress.close()
+            focus = (SHELF_CONTROLS[index], 0)
+            continue
+        if action == "back":
+            if route == "home":
+                return True
+            target, extra = "home", ""
+        if target == "exit":
+            return True
+        if target == "classic":
+            return False
+        if target == "search":
+            term = xbmcgui.Dialog().input("Buscar filmes e séries", type=xbmcgui.INPUT_ALPHANUM)
+            if not term or not term.strip():
+                continue
+            target, extra = "search_results", term.strip()[:80]
+        route, value = target, extra
+        model = screen(route, value)
+        loaded = [None] * len(model["shelves"])
+        focus = (CONTROL_POSTERS, 0)

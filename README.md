@@ -1,3 +1,31 @@
+## Felipe Cinema 1.6.1 — início e navegação dentro da interface Cinema
+
+A alteração 1.6.0 ampliou apenas o menu nativo. A 1.6.1 refaz a própria tela Cinema:
+
+- Início com duas fileiras independentes de capas: filmes e séries em alta na semana.
+- Faixa de atalhos para Netflix, Prime Video, Apple TV+, Disney+, HBO Max,
+  Paramount+, Globoplay e Crunchyroll. Ao escolher uma plataforma, as duas
+  fileiras mostram seus filmes e séries populares.
+- Filmes e Séries com lançamentos, mais avaliados e atalhos por gênero.
+- Em alta alterna entre hoje e semana; busca retorna filmes e séries separados.
+- Próxima/anterior página dentro de cada fileira, sem limite de apenas 20 títulos.
+- Fechar/cancelar a ficha volta à mesma página e posição, sem consultar tudo de novo.
+  Após entregar reprodução ao Elementum ou YouTube, Cinema não reabre sobre o player.
+- Consultas, teclado e ficha são executados somente depois de destruir a janela
+  modal. Os callbacks da janela apenas leem controles e agendam ações.
+- Falha ao buscar a próxima página preserva a anterior; falha inicial oferece tentar
+  novamente. A tela identifica explicitamente a versão 1.6.1.
+
+Acesse em Ferramentas → Experimentar interface Cinema ou habilite Cinema em
+Configurar → Interface. Navegação nativa continua disponível pelo menu lateral.
+A região de referência das plataformas continua explícita; não são rankings
+oficiais nem confirmação de disponibilidade brasileira.
+
+Validação: testes automatizados de navegação, paginação, restauração da seleção,
+separação dos ciclos de vida modal/player e limites geométricos do XML. Não há
+motor gráfico Kodi/TV Box neste ambiente: aparência e estabilidade no aparelho
+não foram verificadas visualmente.
+
 ## Felipe Vídeos 1.6.0 — catálogo por plataforma e navegação nativa
 
 - Início com busca, tendências do dia/semana, plataformas, filmes, séries e ferramentas.

@@ -1,131 +1,465 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <window type="dialog" modality="modal">
-  <defaultcontrol always="true">400</defaultcontrol>
-  <coordinates><system>1</system><posx>0</posx><posy>0</posy></coordinates>
-  <animation effect="fade" time="200">WindowOpen</animation>
-  <animation effect="fade" time="150">WindowClose</animation>
+  <defaultcontrol always="true">200</defaultcontrol>
+  <coordinates>
+    <system>1</system>
+    <posx>0</posx>
+    <posy>0</posy>
+  </coordinates>
   <controls>
     <control type="image" id="10">
-      <left>0</left><top>0</top><width>1920</width><height>1080</height>
-      <texture>cinema-bg.png</texture><aspectratio>stretch</aspectratio>
-    </control>
-    <control type="image" id="11">
-      <left>280</left><top>0</top><width>1640</width><height>630</height>
-      <texture background="true" colordiffuse="66FFFFFF">$INFO[Container(400).ListItem.Art(poster)]</texture>
-      <aspectratio>scale</aspectratio>
+      <left>0</left>
+      <top>0</top>
+      <width>1920</width>
+      <height>1080</height>
+      <aspectratio>stretch</aspectratio>
+      <texture>cinema-bg.png</texture>
     </control>
     <control type="image" id="12">
-      <left>0</left><top>0</top><width>1920</width><height>1080</height>
-      <texture colordiffuse="E50B0F19">cinema-white.png</texture>
+      <left>0</left>
+      <top>0</top>
+      <width>1920</width>
+      <height>1080</height>
+      <aspectratio>stretch</aspectratio>
+      <texture colordiffuse="F20B0F19">cinema-white.png</texture>
     </control>
     <control type="image" id="13">
-      <left>0</left><top>0</top><width>280</width><height>1080</height>
+      <left>0</left>
+      <top>0</top>
+      <width>280</width>
+      <height>1080</height>
+      <aspectratio>stretch</aspectratio>
       <texture colordiffuse="FF111722">cinema-white.png</texture>
     </control>
     <control type="label" id="20">
-      <left>42</left><top>52</top><width>215</width><height>72</height>
-      <font>font30</font><textcolor>FFE50914</textcolor><label>FELIPE</label>
+      <left>40</left>
+      <top>48</top>
+      <width>220</width>
+      <height>64</height>
+      <font>font30</font>
+      <textcolor>FFE50914</textcolor>
+      <label>FELIPE</label>
     </control>
     <control type="label" id="21">
-      <left>43</left><top>115</top><width>210</width><height>38</height>
-      <font>font13</font><textcolor>FFFFFFFF</textcolor><label>V Í D E O S</label>
+      <left>42</left>
+      <top>115</top>
+      <width>220</width>
+      <height>36</height>
+      <font>font13</font>
+      <textcolor>FFFFFFFF</textcolor>
+      <label>C I N E M A</label>
     </control>
     <control type="label" id="22">
-      <left>43</left><top>196</top><width>205</width><height>40</height>
-      <font>font12</font><textcolor>FF8C99AA</textcolor><label>EXPLORE</label>
+      <left>42</left>
+      <top>200</top>
+      <width>220</width>
+      <height>40</height>
+      <font>font12</font>
+      <textcolor>FF8C99AA</textcolor>
+      <label>EXPLORE</label>
     </control>
     <control type="list" id="100">
-      <left>20</left><top>252</top><width>240</width><height>575</height>
-      <orientation>vertical</orientation><scrolltime>170</scrolltime>
-      <onleft>100</onleft><onright>400</onright><onup>100</onup><ondown>100</ondown>
-      <itemlayout height="72" width="240">
+      <left>20</left>
+      <top>260</top>
+      <width>240</width>
+      <height>600</height>
+      <orientation>vertical</orientation>
+      <scrolltime>120</scrolltime>
+      <onleft>100</onleft>
+      <onup>100</onup>
+      <ondown>100</ondown>
+      <itemlayout height="70" width="240">
         <control type="label">
-          <left>16</left><top>0</top><width>214</width><height>70</height>
-          <font>font13</font><aligny>center</aligny>
-          <textcolor>FFB4BECC</textcolor><label>$INFO[ListItem.Label]</label>
+          <left>16</left>
+          <top>0</top>
+          <width>214</width>
+          <height>70</height>
+          <font>font13</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <aligny>center</aligny>
+          <scroll>true</scroll>
         </control>
       </itemlayout>
-      <focusedlayout height="72" width="240">
+      <focusedlayout height="70" width="240">
         <control type="image">
-          <left>0</left><top>4</top><width>240</width><height>64</height>
+          <left>0</left>
+          <top>3</top>
+          <width>240</width>
+          <height>64</height>
+          <aspectratio>stretch</aspectratio>
           <texture colordiffuse="FFBC1821">cinema-white.png</texture>
         </control>
         <control type="label">
-          <left>16</left><top>0</top><width>214</width><height>70</height>
-          <font>font13</font><aligny>center</aligny>
-          <textcolor>FFFFFFFF</textcolor><label>$INFO[ListItem.Label]</label>
+          <left>16</left>
+          <top>0</top>
+          <width>214</width>
+          <height>70</height>
+          <font>font13</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <aligny>center</aligny>
+          <scroll>true</scroll>
+        </control>
+      </focusedlayout>
+      <onright condition="String.IsEqual(Window.Property(CinemaHasTabs),true)">200</onright>
+      <onright condition="!String.IsEqual(Window.Property(CinemaHasTabs),true)">400</onright>
+    </control>
+    <control type="label" id="23">
+      <left>40</left>
+      <top>972</top>
+      <width>220</width>
+      <height>40</height>
+      <font>font12</font>
+      <textcolor>FF8C99AA</textcolor>
+      <label>VERSÃO 1.6.1</label>
+    </control>
+    <control type="label" id="31">
+      <left>326</left>
+      <top>40</top>
+      <width>1510</width>
+      <height>64</height>
+      <font>font30</font>
+      <textcolor>FFFFFFFF</textcolor>
+      <label>$INFO[Window.Property(CinemaSection)]</label>
+    </control>
+    <control type="label" id="37">
+      <left>329</left>
+      <top>112</top>
+      <width>1510</width>
+      <height>38</height>
+      <font>font12</font>
+      <textcolor>FFB4BECC</textcolor>
+      <label>$INFO[Window.Property(CinemaNote)]</label>
+      <scroll>true</scroll>
+    </control>
+    <control type="list" id="200">
+      <left>326</left>
+      <top>170</top>
+      <width>1550</width>
+      <height>70</height>
+      <orientation>horizontal</orientation>
+      <scrolltime>120</scrolltime>
+      <onleft>100</onleft>
+      <onright>200</onright>
+      <onup>100</onup>
+      <ondown>400</ondown>
+      <visible>String.IsEqual(Window.Property(CinemaHasTabs),true)</visible>
+      <itemlayout height="70" width="280">
+        <control type="image">
+          <left>0</left>
+          <top>2</top>
+          <width>268</width>
+          <height>60</height>
+          <aspectratio>stretch</aspectratio>
+          <texture colordiffuse="FF243044">cinema-white.png</texture>
+        </control>
+        <control type="label">
+          <left>12</left>
+          <top>4</top>
+          <width>244</width>
+          <height>56</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <scroll>false</scroll>
+        </control>
+      </itemlayout>
+      <focusedlayout height="70" width="280">
+        <control type="image">
+          <left>0</left>
+          <top>2</top>
+          <width>268</width>
+          <height>60</height>
+          <aspectratio>stretch</aspectratio>
+          <texture colordiffuse="FFBC1821">cinema-white.png</texture>
+        </control>
+        <control type="label">
+          <left>12</left>
+          <top>4</top>
+          <width>244</width>
+          <height>56</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <scroll>true</scroll>
         </control>
       </focusedlayout>
     </control>
-    <control type="label" id="30">
-      <left>326</left><top>50</top><width>1400</width><height>47</height>
-      <font>font13</font><textcolor>FFCAD2DD</textcolor>
-      <label>FELIPE VÍDEOS     •     SEU CINEMA EM CASA</label>
-    </control>
-    <control type="label" id="31">
-      <left>326</left><top>134</top><width>1260</width><height>72</height>
-      <font>font30</font><textcolor>FFFFFFFF</textcolor>
-      <label>$INFO[Window.Property(CinemaSection)]</label>
-    </control>
-    <control type="label" id="32">
-      <left>329</left><top>235</top><width>1200</width><height>48</height>
-      <font>font24</font><textcolor>FFFFFFFF</textcolor>
+    <control type="label" id="50">
+      <left>329</left>
+      <top>268</top>
+      <width>1510</width>
+      <height>50</height>
+      <font>font24</font>
+      <textcolor>FFFFFFFF</textcolor>
       <label>$INFO[Container(400).ListItem.Label]</label>
       <scroll>true</scroll>
+      <visible>!Control.HasFocus(410)</visible>
     </control>
-    <control type="textbox" id="33">
-      <left>329</left><top>303</top><width>1090</width><height>168</height>
-      <font>font13</font><textcolor>FFE0E6EC</textcolor>
+    <control type="textbox" id="60">
+      <left>329</left>
+      <top>326</top>
+      <width>1510</width>
+      <height>75</height>
+      <font>font12</font>
+      <textcolor>FFB4BECC</textcolor>
       <label>$INFO[Container(400).ListItem.Plot]</label>
+      <visible>!Control.HasFocus(410)</visible>
+    </control>
+    <control type="label" id="51">
+      <left>329</left>
+      <top>268</top>
+      <width>1510</width>
+      <height>50</height>
+      <font>font24</font>
+      <textcolor>FFFFFFFF</textcolor>
+      <label>$INFO[Container(410).ListItem.Label]</label>
+      <scroll>true</scroll>
+      <visible>Control.HasFocus(410)</visible>
+    </control>
+    <control type="textbox" id="61">
+      <left>329</left>
+      <top>326</top>
+      <width>1510</width>
+      <height>75</height>
+      <font>font12</font>
+      <textcolor>FFB4BECC</textcolor>
+      <label>$INFO[Container(410).ListItem.Plot]</label>
+      <visible>Control.HasFocus(410)</visible>
     </control>
     <control type="label" id="34">
-      <left>327</left><top>496</top><width>1200</width><height>45</height>
-      <font>font13</font><textcolor>FFFFFFFF</textcolor><label>ESCOLHA UM TÍTULO</label>
+      <left>329</left>
+      <top>417</top>
+      <width>1510</width>
+      <height>36</height>
+      <font>font13</font>
+      <textcolor>FFFFFFFF</textcolor>
+      <label>$INFO[Window.Property(CinemaRow1)]</label>
+      <visible>String.IsEqual(Window.Property(CinemaHasRow1),true)</visible>
     </control>
-    <control type="wraplist" id="400">
-      <left>316</left><top>550</top><width>1578</width><height>390</height>
-      <orientation>horizontal</orientation><scrolltime>180</scrolltime>
-      <focusposition>2</focusposition>
-      <onleft>100</onleft><onright>400</onright><onup>100</onup><ondown>400</ondown>
-      <itemlayout height="382" width="226">
+    <control type="list" id="400">
+      <left>326</left>
+      <top>460</top>
+      <width>1550</width>
+      <height>248</height>
+      <orientation>horizontal</orientation>
+      <scrolltime>120</scrolltime>
+      <onleft>100</onleft>
+      <onright>400</onright>
+      <visible>String.IsEqual(Window.Property(CinemaHasRow1),true)</visible>
+      <onup condition="String.IsEqual(Window.Property(CinemaHasTabs),true)">200</onup>
+      <onup condition="!String.IsEqual(Window.Property(CinemaHasTabs),true)">100</onup>
+      <ondown condition="String.IsEqual(Window.Property(CinemaHasRow2),true)">410</ondown>
+      <ondown condition="!String.IsEqual(Window.Property(CinemaHasRow2),true)">100</ondown>
+      <itemlayout height="248" width="178">
         <control type="image">
-          <left>10</left><top>9</top><width>206</width><height>300</height>
-          <texture background="true">$INFO[ListItem.Art(poster)]</texture>
+          <left>0</left>
+          <top>0</top>
+          <width>166</width>
+          <height>204</height>
+          <aspectratio>stretch</aspectratio>
+          <texture colordiffuse="FF243044">cinema-white.png</texture>
+        </control>
+        <control type="image">
+          <left>4</left>
+          <top>4</top>
+          <width>158</width>
+          <height>196</height>
           <aspectratio>scale</aspectratio>
+          <texture background="true">$INFO[ListItem.Art(poster)]</texture>
         </control>
         <control type="label">
-          <left>10</left><top>318</top><width>206</width><height>50</height>
-          <font>font12</font><textcolor>FFB9C6D7</textcolor>
-          <align>center</align><aligny>center</aligny>
+          <left>8</left>
+          <top>42</top>
+          <width>150</width>
+          <height>112</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
           <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <wrapmultiline>true</wrapmultiline>
+          <visible>String.IsEqual(ListItem.Property(CinemaAction),true)</visible>
+        </control>
+        <control type="label">
+          <left>0</left>
+          <top>210</top>
+          <width>166</width>
+          <height>36</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <scroll>false</scroll>
         </control>
       </itemlayout>
-      <focusedlayout height="382" width="226">
+      <focusedlayout height="248" width="178">
         <control type="image">
-          <left>4</left><top>3</top><width>218</width><height>312</height>
+          <left>0</left>
+          <top>0</top>
+          <width>166</width>
+          <height>204</height>
+          <aspectratio>stretch</aspectratio>
           <texture colordiffuse="FFE50914">cinema-white.png</texture>
         </control>
         <control type="image">
-          <left>10</left><top>9</top><width>206</width><height>300</height>
-          <texture background="true">$INFO[ListItem.Art(poster)]</texture>
+          <left>4</left>
+          <top>4</top>
+          <width>158</width>
+          <height>196</height>
           <aspectratio>scale</aspectratio>
+          <texture background="true">$INFO[ListItem.Art(poster)]</texture>
         </control>
         <control type="label">
-          <left>4</left><top>318</top><width>218</width><height>50</height>
-          <font>font12</font><textcolor>FFFFFFFF</textcolor>
-          <align>center</align><aligny>center</aligny>
+          <left>8</left>
+          <top>42</top>
+          <width>150</width>
+          <height>112</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
           <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <wrapmultiline>true</wrapmultiline>
+          <visible>String.IsEqual(ListItem.Property(CinemaAction),true)</visible>
+        </control>
+        <control type="label">
+          <left>0</left>
+          <top>210</top>
+          <width>166</width>
+          <height>36</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <scroll>true</scroll>
         </control>
       </focusedlayout>
     </control>
     <control type="label" id="35">
-      <left>330</left><top>966</top><width>1550</width><height>45</height>
-      <font>font12</font><textcolor>FF96A3B3</textcolor>
-      <label>OK  Abrir filme ou série     •     ESQUERDA  Menu     •     VOLTAR  Sair</label>
+      <left>329</left>
+      <top>717</top>
+      <width>1510</width>
+      <height>36</height>
+      <font>font13</font>
+      <textcolor>FFFFFFFF</textcolor>
+      <label>$INFO[Window.Property(CinemaRow2)]</label>
+      <visible>String.IsEqual(Window.Property(CinemaHasRow2),true)</visible>
+    </control>
+    <control type="list" id="410">
+      <left>326</left>
+      <top>760</top>
+      <width>1550</width>
+      <height>248</height>
+      <orientation>horizontal</orientation>
+      <scrolltime>120</scrolltime>
+      <onleft>100</onleft>
+      <onright>410</onright>
+      <visible>String.IsEqual(Window.Property(CinemaHasRow2),true)</visible>
+      <onup>400</onup>
+      <itemlayout height="248" width="178">
+        <control type="image">
+          <left>0</left>
+          <top>0</top>
+          <width>166</width>
+          <height>204</height>
+          <aspectratio>stretch</aspectratio>
+          <texture colordiffuse="FF243044">cinema-white.png</texture>
+        </control>
+        <control type="image">
+          <left>4</left>
+          <top>4</top>
+          <width>158</width>
+          <height>196</height>
+          <aspectratio>scale</aspectratio>
+          <texture background="true">$INFO[ListItem.Art(poster)]</texture>
+        </control>
+        <control type="label">
+          <left>8</left>
+          <top>42</top>
+          <width>150</width>
+          <height>112</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <wrapmultiline>true</wrapmultiline>
+          <visible>String.IsEqual(ListItem.Property(CinemaAction),true)</visible>
+        </control>
+        <control type="label">
+          <left>0</left>
+          <top>210</top>
+          <width>166</width>
+          <height>36</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <scroll>false</scroll>
+        </control>
+      </itemlayout>
+      <focusedlayout height="248" width="178">
+        <control type="image">
+          <left>0</left>
+          <top>0</top>
+          <width>166</width>
+          <height>204</height>
+          <aspectratio>stretch</aspectratio>
+          <texture colordiffuse="FFE50914">cinema-white.png</texture>
+        </control>
+        <control type="image">
+          <left>4</left>
+          <top>4</top>
+          <width>158</width>
+          <height>196</height>
+          <aspectratio>scale</aspectratio>
+          <texture background="true">$INFO[ListItem.Art(poster)]</texture>
+        </control>
+        <control type="label">
+          <left>8</left>
+          <top>42</top>
+          <width>150</width>
+          <height>112</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <wrapmultiline>true</wrapmultiline>
+          <visible>String.IsEqual(ListItem.Property(CinemaAction),true)</visible>
+        </control>
+        <control type="label">
+          <left>0</left>
+          <top>210</top>
+          <width>166</width>
+          <height>36</height>
+          <font>font12</font>
+          <textcolor>FFFFFFFF</textcolor>
+          <label>$INFO[ListItem.Label]</label>
+          <align>center</align>
+          <aligny>center</aligny>
+          <scroll>true</scroll>
+        </control>
+      </focusedlayout>
+      <ondown condition="String.IsEqual(Window.Property(CinemaHasTabs),true)">200</ondown>
+      <ondown condition="!String.IsEqual(Window.Property(CinemaHasTabs),true)">100</ondown>
     </control>
     <control type="label" id="36">
-      <left>330</left><top>1020</top><width>1550</width><height>38</height>
-      <font>font12</font><textcolor>FFAFC0D0</textcolor>
+      <left>329</left>
+      <top>1030</top>
+      <width>1550</width>
+      <height>36</height>
+      <font>font12</font>
+      <textcolor>FF8C99AA</textcolor>
       <label>$INFO[Window.Property(CinemaStatus)]</label>
     </control>
   </controls>
