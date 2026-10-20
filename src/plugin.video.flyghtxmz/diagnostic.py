@@ -58,7 +58,7 @@ def recent_errors(logname="kodi.log"):
         results = []
         for line in lines:
             lowered = line.lower()
-            if not any(term in lowered for term in ("flyghtxmz", "felipe vídeos:", "elementum", "crepository:")):
+            if not any(term in lowered for term in ("flyghtxmz", "felipe vídeos:", "felipe vídeos cinema:", "elementum", "crepository:")):
                 continue
             if re.search(r"authorization|password|senha|token|setting auth|login", lowered):
                 continue
