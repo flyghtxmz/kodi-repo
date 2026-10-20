@@ -41,6 +41,25 @@ class DiagnosticTests(unittest.TestCase):
             self.assertNotIn("private", lines)
             self.assertNotIn("unrelated", lines)
 
+    def test_crash_report_reads_previous_session_without_leaking_urls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "kodi.log").write_text(
+                "INFO unrelated service\\n", encoding="utf-8")
+            (Path(directory) / "kodi.old.log").write_text(
+                "ERROR Felipe Vídeos Cinema: erro ao selecionar título\\n"
+                "ERROR elementum magnet:?xt=urn:btih:secret&token=private\\n",
+                encoding="utf-8")
+            module = self.load(str(Path(directory) / "kodi.log"))
+            module.xbmcvfs.translatePath = lambda target: str(
+                Path(directory) / target.split("/")[-1])
+            with patch.object(module, "kodi_read", side_effect=OSError("offline")), \
+                    patch.object(module, "python_read", side_effect=OSError("offline")):
+                report = module.run_diagnostic()
+            self.assertIn("Log da sessão anterior", report)
+            self.assertIn("erro ao selecionar", report)
+            self.assertNotIn("token=private", report)
+            self.assertIn("<url>", report)
+
     def test_diagnostic_header_uses_installed_addon_version(self):
         module = self.load()
         def unavailable(*args):
