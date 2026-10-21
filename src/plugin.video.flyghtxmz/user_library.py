@@ -113,6 +113,10 @@ def mark_started(request):
     with _LOCK:
         data = _read()
         prior = data["history"].get(key, {})
+        if request.get("media") == "series" and (
+                prior.get("season") != request.get("season") or
+                prior.get("episode") != request.get("episode")):
+            prior = {}
         row = _title(request)
         row["started"] = True
         row["updated"] = time.time()
