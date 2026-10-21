@@ -117,7 +117,10 @@ export function fromTorrentioPayload(payload) {
     const prior=unique.get(key);
     if (!prior || better(src,prior)) unique.set(key,src);
   }
-  const sources=Array.from(unique.values()).sort((a,b)=>{
+  const indexedHashes=new Set(Array.from(unique.values()).filter(s=>s.fileIdx!==null).map(s=>s.infoHash));
+  const sources=Array.from(unique.values())
+    .filter(s=>s.fileIdx!==null || !indexedHashes.has(s.infoHash))
+    .sort((a,b)=>{
     const x=score(a),y=score(b);
     for(let i=0;i<x.length;i++) if(x[i]!==y[i]) return y[i]-x[i];
     return a.title.localeCompare(b.title,"pt-BR");
@@ -149,7 +152,14 @@ export function mergeSources(existing=[],additional=[]) {
     const prior=map.get(key);
     if (!prior || better(item,prior)) map.set(key,item);
   }
-  return [...map.values()].sort((a,b)=>{
+  const indexedHashes=new Set([...map.values()]
+    .filter(x=>Number.isSafeInteger(x.fileIdx) || Number.isSafeInteger(x.file_index))
+    .map(x=>torrentHash(x) || hashFromUri(x.url || x.magnet)));
+  return [...map.values()].filter(x=>{
+    const indexed=Number.isSafeInteger(x.fileIdx) || Number.isSafeInteger(x.file_index);
+    const hash=torrentHash(x) || hashFromUri(x.url || x.magnet);
+    return indexed || !indexedHashes.has(hash);
+  }).sort((a,b)=>{
     const x=score(a),y=score(b);
     for(let i=0;i<x.length;i++) if(x[i]!==y[i]) return y[i]-x[i];
     return String(a.title||"").localeCompare(String(b.title||""),"pt-BR");
