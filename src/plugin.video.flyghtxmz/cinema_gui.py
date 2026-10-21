@@ -231,7 +231,11 @@ def launch(on_select):
                 # native title/source dialogs or asynchronous Player.Open.
                 saved = (window.model, window.loaded, window.shelf_offset, window.restore_focus)
                 window.close()
-                del window
+                # Evita libertar o objeto C++ enquanto os callbacks da janela
+                # ainda estão no ciclo de eventos do Android/Kodi.
+                native_sleep = getattr(xbmc, "sleep", None)
+                if callable(native_sleep):
+                    native_sleep(350)
                 window = None
                 xbmc.log("Felipe Cinema: janela encerrada antes da ficha " + target, xbmc.LOGINFO)
                 try:
