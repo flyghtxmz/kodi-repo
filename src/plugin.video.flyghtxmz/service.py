@@ -1,6 +1,7 @@
 """Service de baixo consumo para confirmar vídeo iniciado e guardar progresso."""
 import time
 import xbmc
+import xbmcaddon
 import local_cache
 import user_library
 
@@ -46,6 +47,13 @@ class PlaybackTracker(xbmc.Player):
 
     def _try_resume(self):
         if not self.current or self.resume_applied:
+            return
+        try:
+            if xbmcaddon.Addon().getSetting("playback_auto_resume").strip().lower() != "true":
+                self.resume_applied = True
+                return
+        except (OSError, RuntimeError, AttributeError, ValueError, TypeError):
+            self.resume_applied = True
             return
         try:
             duration = float(self.getTotalTime())
