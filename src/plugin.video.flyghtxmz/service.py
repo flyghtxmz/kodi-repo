@@ -66,11 +66,17 @@ class PlaybackTracker(xbmc.Player):
         self._started()
 
     def onPlayBackStarted(self):
-        self._started()
+        # O evento pode ocorrer antes de haver áudio/vídeo decodificado.
+        pass
 
     def tick(self):
         if not self.current:
-            self._started()
+            try:
+                # Fallback para builds que não disparam onAVStarted.
+                if self.isPlayingVideo() and self.getTime() >= 1:
+                    self._started()
+            except (OSError, RuntimeError, ValueError, TypeError):
+                pass
         if self.current:
             self._try_resume()
         if not self.current or time.monotonic() - self.last_write < 15:
