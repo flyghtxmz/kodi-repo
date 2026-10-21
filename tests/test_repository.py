@@ -412,6 +412,17 @@ class PluginTests(unittest.TestCase):
         self.assertIn("plugin.video.elementum/play?uri=", result["play_requests"][0])
         self.assertEqual(result["notifications"], [])
 
+    def test_playback_does_not_open_custom_backdrop(self):
+        def forbidden(*args, **kwargs):
+            raise AssertionError("Custom playback window must remain disabled")
+        backdrop = types.SimpleNamespace(launch_with_backdrop=forbidden)
+        with patch.dict(sys.modules, {"playback_backdrop": backdrop}):
+            result = self.run_addon("recent_detail",
+                query={"identifier": "tt1234567", "media": "movie"},
+                popup_choices=[0, 0])
+        self.assertEqual(len(result["play_requests"]), 1)
+        self.assertEqual(result["notifications"], [])
+
     def test_quick_lookup_shows_more_sources_entry(self):
         result = self.run_addon("recent_detail",
             query={"identifier": "tt1234567", "media": "movie"},
