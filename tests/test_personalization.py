@@ -18,7 +18,7 @@ class LocalLibraryTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         mock_path = patch.object(user_library, "_path",
-                                 return_value=Path(self.directory.name) / "library.json")
+                                 side_effect=lambda group: Path(self.directory.name) / ("library_" + group + ".json"))
         mock_path.start()
         self.addCleanup(mock_path.stop)
 
