@@ -76,7 +76,7 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
     def set_busy(self, busy, message="Carregando…"):
         self.busy = busy
         self.setProperty("CinemaStatus", message if busy else
-                         "Cinema 1.7.1 • BORDA DOURADA: foco • OK: abrir • ←→: navegar • ↑↓: fileiras")
+                         "Cinema 1.7.4 • BORDA DOURADA: foco • OK: abrir • ←→: navegar • ↑↓: fileiras")
 
     def _load(self, control, spec, data):
         row = SHELF_CONTROLS.index(control) + 1
