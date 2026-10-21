@@ -56,7 +56,7 @@ class RepositoryTests(unittest.TestCase):
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
 
 class PluginTests(unittest.TestCase):
-    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None, allow_zero_seed=True, player_active=False, subtitle_items=None, subtitle_error=None, elementum_enabled=True, player_open_response=None):
+    def run_addon(self, action="", custom_url="", magnet_input="", elementum_installed=True, query=None, cloudflare_endpoint="", popup_choices=None, source_items=None, allow_zero_seed=True, player_active=False, subtitle_items=None, subtitle_error=None, elementum_enabled=True, player_open_response=None, safe_handoff=False):
         calls = {"items": [], "resolved": [], "ends": [], "settings": 0, "commands": [], "dialogs": [], "popups": [], "lookups": [], "rpc": [], "play_requests": [], "notifications": [], "logs": []}
         choices = list(popup_choices) if popup_choices is not None else [0]
         xbmc = types.ModuleType("xbmc")
@@ -73,6 +73,8 @@ class PluginTests(unittest.TestCase):
                 return "0.1.114" if key == "version" else ""
 
             def getSetting(self, key):
+                if key == "safe_playback_handoff":
+                    return "true" if safe_handoff else "false"
                 return custom_url if key == "custom_url" else (cloudflare_endpoint if key == "cloudflare_endpoint" else "")
 
             def openSettings(self):
@@ -461,6 +463,14 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(len(result["popups"][2][1]), 1)
         self.assertIn("Dublado", result["popups"][2][1][0])
         self.assertEqual(len(result["play_requests"]), 1)
+
+    def test_safe_handoff_defers_elementum_until_title_popup_finishes(self):
+        result = self.run_addon("recent_detail", query={"identifier": "tt1234567", "media": "movie"},
+                                popup_choices=[0, 0], safe_handoff=True)
+        self.assertEqual(result["play_requests"], [])
+        self.assertTrue(any(value.startswith("AlarmClock(FelipeVideosPlayback,PlayMedia(plugin://plugin.video.elementum/play?")
+                            and "00:00:02,silent,false)" in value for value in result["commands"]))
+        self.assertTrue(any(value.startswith("CancelAlarm(FelipeVideosPlayback") for value in result["commands"]))
 
     def test_playback_check_shows_no_confirmed_video(self):
         result = self.run_addon("playback_check")
