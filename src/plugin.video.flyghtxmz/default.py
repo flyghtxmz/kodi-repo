@@ -816,7 +816,10 @@ def launch_elementum(uri, file_index=None):
         event = local_cache.get("last_playback", "selected")
         if not isinstance(event, dict):
             event = {}
-        event.update(request="aceito_pelo_kodi", handoff_seconds=round(elapsed, 2))
+        if event.get("request") not in (
+                "video_iniciado", "video_retomado", "video_finalizado", "video_interrompido", "falha_player"):
+            event["request"] = "aceito_pelo_kodi"
+        event["handoff_seconds"] = round(elapsed, 2)
         local_cache.put("last_playback", "selected", event, ttl=172800, max_entries=1)
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
