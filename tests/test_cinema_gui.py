@@ -38,6 +38,8 @@ class FakeWindow:
         self.properties[name] = value
     def setFocusId(self, cid):
         self.focus = cid
+    def getFocusId(self):
+        return self.focus
     def show(self):
         self.visible = True
         self.onInit()
@@ -87,9 +89,9 @@ class CinemaTests(unittest.TestCase):
             self.assertEqual(controls[cid].get('type'), 'list')
             for pos, size, maximum in [('left', 'width', 1920), ('top', 'height', 1080)]:
                 self.assertLessEqual(int(controls[cid].findtext(pos)) + int(controls[cid].findtext(size)), maximum)
-        self.assertEqual(controls['200'].findtext('ondown'), '400')
-        self.assertIn('410', [x.text for x in controls['400'].findall('ondown')])
-        self.assertEqual(controls['410'].findtext('onup'), '400')
+        for cid in ('200', '400', '410'):
+            self.assertEqual(controls[cid].findtext('onup'), cid)
+            self.assertEqual(controls[cid].findtext('ondown'), cid)
         self.assertEqual(controls['10'].findtext('width'), '1920')
 
     def test_callbacks_queue_without_closing_or_fetching_and_ignore_busy_clicks(self):
@@ -134,7 +136,7 @@ class CinemaTests(unittest.TestCase):
         def dispatch(seconds):
             if abort:
                 return True
-            win = windows[0]
+            win = windows[-1]
             self.assertTrue(win.visible)
             self.assertFalse(win.busy)
             snapshots.append((win.model, win.loaded[:], win.restore_focus))
@@ -148,24 +150,23 @@ class CinemaTests(unittest.TestCase):
         if cancel_search:
             module.xbmcgui.Dialog = lambda: types.SimpleNamespace(input=lambda *args, **kw: '')
         def load(spec, page):
-            win = windows[0]
+            win = windows[-1]
             self.assertTrue(win.visible, 'Native Kodi must never be exposed during catalog IO')
             self.assertTrue(win.busy)
-            self.assertEqual(events.count('window_closed'), 0)
+            self.assertEqual(events.count('window_created') - events.count('window_closed'), 1)
             if (fail_page and page == 2) or fail_initial:
                 raise OSError('offline')
             return {'items': [{'id':'tt1234567','media':spec['media'],'title':'Movie','poster':'','plot':''} for _ in range(10)],
                     'more': True, 'page':page, 'error':'offline' if error_page and page == 2 else ''}
         def select(*args):
-            self.assertTrue(windows[0].visible, 'Cinema must remain underneath child dialogs')
-            self.assertTrue(windows[0].busy)
+            self.assertFalse(any(w.visible for w in windows), 'Cinema must be closed before child dialogs')
+            self.assertEqual(events.count('window_created'), events.count('window_closed'))
             events.append('selected')
             return on_select(*args) if on_select else None
         with patch.object(module, 'load_shelf', side_effect=load) as loader:
             result = module.launch(select)
-        self.assertEqual(events.count('window_created'), 1)
-        self.assertEqual(events.count('window_closed'), 1)
-        self.assertFalse(windows[0].visible)
+        self.assertEqual(events.count('window_created'), events.count('window_closed'))
+        self.assertFalse(any(w.visible for w in windows))
         return result, snapshots, events, loader
 
     def test_cancelled_detail_restores_page_and_focus_without_reloading(self):
@@ -235,12 +236,43 @@ class CinemaTests(unittest.TestCase):
                 self.assertTrue(result)
                 loader.assert_not_called()
 
-    def test_focus_ribbon_is_visible_in_both_shelves(self):
+    def test_only_actual_focus_has_gold_outline_without_selection_text(self):
         root = ET.parse(ADDON / 'resources/skins/Default/1080i/FelipeCinema.xml').getroot()
-        for cid in ('400','410'):
+        for cid in ('100','200','400','410'):
             control = root.find("./controls/control[@id='{}']".format(cid))
-            labels = [x.text for x in control.findall('./focusedlayout/control/label')]
-            self.assertIn('▶ SELECIONADO', labels)
+            gold = [x for x in control.findall('./focusedlayout/control')
+                    if x.find('texture') is not None and x.find('texture').get('colordiffuse') == 'FFFFD166']
+            self.assertEqual(len(gold), 1)
+            self.assertEqual(gold[0].findtext('visible'), 'Control.HasFocus({})'.format(cid))
+            self.assertFalse(any('SELECION' in (x.text or '').upper() for x in control.findall('.//label')))
+
+    def test_vertical_navigation_does_not_skip_first_or_second_shelf(self):
+        module = self.module()
+        win = module.CinemaWindow()
+        win.prepare(catalog.screen())
+        win.show()
+        win.set_busy(False)
+        win.setFocusId(200)
+        down = types.SimpleNamespace(getId=lambda: 4)
+        up = types.SimpleNamespace(getId=lambda: 3)
+        win.onAction(down)
+        self.assertEqual(win.getFocusId(), 400)
+        self.assertTrue(win.requests.empty())
+        win.onAction(down)
+        self.assertEqual(win.getFocusId(), 410)
+        self.assertTrue(win.requests.empty())
+        win.onAction(down)
+        self.assertEqual(win.requests.get_nowait(), ('scroll', 1, ''))
+        win.set_busy(False)
+        win.onAction(up)
+        self.assertEqual(win.getFocusId(), 400)
+        self.assertTrue(win.requests.empty())
+
+    def test_pagination_of_third_shelf_maps_back_to_visible_control(self):
+        _, states, _, _ = self.run_controller([
+            ('scroll', 1, ''), ('page', 2, 2), ('navigate','exit','')])
+        self.assertEqual(states[-1][1][2]['page'], 2)
+        self.assertEqual(states[-1][2], (410, 0))
 
     def test_bad_metadata_is_not_passed_to_kodi(self):
         self.assertEqual(catalog.compact_catalog([{'id':'tmdb:3','type':'movie','title':'bad'}], {}), [])
