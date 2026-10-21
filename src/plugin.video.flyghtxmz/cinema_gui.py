@@ -1,5 +1,7 @@
 """Persistent Cinema shell; catalog IO and popups stay outside GUI callbacks."""
 from queue import Queue, Empty, Full
+import json
+from datetime import date
 from threading import Event
 from time import monotonic
 import xbmc
@@ -20,6 +22,7 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
     def prepare(self, model):
         self.model = model
         self.loaded = [None] * len(model["shelves"])
+        self.shelf_offset = 0
         self.restore_focus = (CONTROL_TABS, 0)
         self.requests = Queue(maxsize=1)
         self.ready = Event()
@@ -44,14 +47,24 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
         self.setProperty("CinemaNote", self.model["note"])
         self.setProperty("CinemaHasTabs", "true" if self.model["tabs"] else "")
         self.setProperty("CinemaHasRow2", "")
+        self.setProperty("CinemaHasRow1", "")
+        below = self.shelf_offset + len(SHELF_CONTROLS) < len(self.model["shelves"])
+        self.setProperty("CinemaShelfHint", "↓ Mais fileiras" if below else "")
+        self.setProperty("CinemaHeroImage", "")
         tabs = self.getControl(CONTROL_TABS)
         tabs.reset()
         tabs.addItems([xbmcgui.ListItem(label=label) for label, _, _ in self.model["tabs"]])
-        for control, spec, data in zip(SHELF_CONTROLS, self.model["shelves"], self.loaded):
+        for visible_index, control in enumerate(SHELF_CONTROLS):
+            index = self.shelf_offset + visible_index
+            if index >= len(self.model["shelves"]):
+                continue
+            spec, data = self.model["shelves"][index], self.loaded[index]
             if data is None:
                 data = {"items": [{"title": "Carregando títulos…", "action": "empty"}],
                         "page": 1, "more": False, "error": ""}
             self._load(control, spec, data)
+            if visible_index == 0 and data.get("items"):
+                self.setProperty("CinemaHeroImage", data["items"][0].get("poster") or "")
         focus, index = self.restore_focus
         available = (CONTROL_NAV, CONTROL_TABS) + SHELF_CONTROLS[:len(self.loaded)]
         if focus not in available or (focus == CONTROL_TABS and not self.model["tabs"]):
@@ -118,13 +131,21 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
                 return
             movie = entries[selected]
             if movie.get("action") == "page":
-                self._queue(("page", SHELF_CONTROLS.index(controlId), movie["page"]), controlId)
+                self._queue(("page", self.shelf_offset + SHELF_CONTROLS.index(controlId), movie["page"]), controlId)
             elif not movie.get("action"):
                 self._queue(("select", movie["id"], movie["media"]), controlId)
 
     def onAction(self, action):
-        if action.getId() in BACK_ACTIONS:
+        key = action.getId()
+        if key in BACK_ACTIONS:
             self._queue(("back", "", ""), CONTROL_NAV)
+            return
+        focus_reader = getattr(self, "getFocusId", None)
+        focused = focus_reader() if callable(focus_reader) else self.restore_focus[0]
+        if key == 4 and focused == SHELF_CONTROLS[-1] and self.shelf_offset + len(SHELF_CONTROLS) < len(self.loaded):
+            self._queue(("scroll", 1, ""), focused)
+        elif key == 3 and focused == SHELF_CONTROLS[0] and self.shelf_offset > 0:
+            self._queue(("scroll", -1, ""), focused)
 
 
 def launch(on_select):
@@ -154,7 +175,9 @@ def launch(on_select):
         route = "home"
         while not monitor.abortRequested():
             # The shell is already visible, including on the first catalog load.
-            for index, spec in enumerate(window.model["shelves"]):
+            for index in range(window.shelf_offset, min(len(window.model["shelves"]),
+                                                         window.shelf_offset + len(SHELF_CONTROLS))):
+                spec = window.model["shelves"][index]
                 if window.loaded[index] is not None:
                     continue
                 if monitor.abortRequested():
@@ -178,6 +201,12 @@ def launch(on_select):
             else:
                 return True
             action, target, extra = request
+            if action == "scroll":
+                window.shelf_offset = max(0, min(window.shelf_offset + target,
+                    max(0, len(window.loaded) - len(SHELF_CONTROLS))))
+                window.restore_focus = (SHELF_CONTROLS[-1] if target > 0 else SHELF_CONTROLS[0], 0)
+                window.render()
+                continue
             if action == "select":
                 try:
                     if on_select(target, extra):
@@ -216,10 +245,22 @@ def launch(on_select):
                 term = xbmcgui.Dialog().input("Buscar filmes e séries", type=xbmcgui.INPUT_ALPHANUM)
                 if not term or not term.strip():
                     continue
-                target, extra = "search_results", term.strip()[:80]
+                kind = xbmcgui.Dialog().select("Tipo de conteúdo", ["Filmes e séries", "Só filmes", "Só séries"])
+                if kind is None or kind < 0:
+                    continue
+                year = xbmcgui.Dialog().input("Ano (opcional; deixar vazio = todos)",
+                                               type=xbmcgui.INPUT_NUMERIC)
+                year = str(year or "").strip()
+                if year and (not year.isdigit() or not 1880 <= int(year) <= date.today().year + 2):
+                    xbmcgui.Dialog().ok("Ano inválido", "Digite um ano válido ou deixe em branco.")
+                    continue
+                target, extra = "search_results", json.dumps(
+                    {"q": term.strip()[:80], "media": ("all", "movie", "series")[kind],
+                     "year": year})
             route = target
             window.model = screen(route, extra)
             window.loaded = [None] * len(window.model["shelves"])
+            window.shelf_offset = 0
             window.restore_focus = (CONTROL_POSTERS, 0)
             window.render()
         return True
