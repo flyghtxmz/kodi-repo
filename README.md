@@ -1,3 +1,7 @@
+## Felipe Vídeos 1.7.3 — reversão do fundo de carregamento
+
+Após novo relato de fechamento do Kodi, a reprodução deixa de criar a janela de fundo introduzida na 1.7.2. O carregamento volta ao fundo nativo. Mantém foco/navegação e a remoção da notificação longa. Esta é uma mitigação conservadora, não uma confirmação da causa do crash. O HTTP 403 mostrado nas fotos pertence à consulta do repositório Elementum; a falha fatal ainda precisa de log completo.
+
 ## Felipe Vídeos 1.7.2 — fundo de carregamento
 
 - Tela escura com capa e título durante a preparação do Elementum, sem a notificação longa de aceite.

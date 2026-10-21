@@ -635,12 +635,8 @@ def start_cloudflare_play(url, file_index=None, title="", poster=""):
     if not is_supported_source(url):
         xbmcgui.Dialog().ok("Fonte inválida", "O link não é um magnet ou torrent compatível.")
         return
-    try:
-        from playback_backdrop import launch_with_backdrop
-    except (ImportError, AttributeError):
-        return launch_elementum(url, file_index=file_index)
-    return launch_with_backdrop(lambda: launch_elementum(url, file_index=file_index),
-                                title=title, poster=poster)
+    # Stability rollback: no custom window during the native player handoff.
+    return launch_elementum(url, file_index=file_index)
 
 
 def play_cloudflare_source(url):
