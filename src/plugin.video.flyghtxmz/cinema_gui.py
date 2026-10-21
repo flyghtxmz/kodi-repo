@@ -66,7 +66,7 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
             if visible_index == 0 and data.get("items"):
                 self.setProperty("CinemaHeroImage", data["items"][0].get("poster") or "")
         focus, index = self.restore_focus
-        available = (CONTROL_NAV, CONTROL_TABS) + SHELF_CONTROLS[:len(self.loaded)]
+        available = (CONTROL_NAV, CONTROL_TABS) + SHELF_CONTROLS[:min(len(SHELF_CONTROLS), len(self.loaded) - self.shelf_offset)]
         if focus not in available or (focus == CONTROL_TABS and not self.model["tabs"]):
             focus, index = CONTROL_NAV, nav_index
         self.setFocusId(focus)
@@ -76,7 +76,7 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
     def set_busy(self, busy, message="Carregando…"):
         self.busy = busy
         self.setProperty("CinemaStatus", message if busy else
-                         "Cinema 1.7.0 • BORDA VERMELHA: seleção • OK: abrir • ←→: navegar • ↑↓: fileiras")
+                         "Cinema 1.7.1 • BORDA DOURADA: foco • OK: abrir • ←→: navegar • ↑↓: fileiras")
 
     def _load(self, control, spec, data):
         row = SHELF_CONTROLS.index(control) + 1
@@ -142,10 +142,28 @@ class CinemaWindow(xbmcgui.WindowXMLDialog):
             return
         focus_reader = getattr(self, "getFocusId", None)
         focused = focus_reader() if callable(focus_reader) else self.restore_focus[0]
-        if key == 4 and focused == SHELF_CONTROLS[-1] and self.shelf_offset + len(SHELF_CONTROLS) < len(self.loaded):
-            self._queue(("scroll", 1, ""), focused)
-        elif key == 3 and focused == SHELF_CONTROLS[0] and self.shelf_offset > 0:
-            self._queue(("scroll", -1, ""), focused)
+        if self.busy:
+            return
+        # XML up/down routes stay on the same list. Handle exactly one hop
+        # here, using the source focus, so entering row 2 cannot also scroll it.
+        if key == 4:
+            if focused == CONTROL_TABS:
+                self.setFocusId(CONTROL_POSTERS)
+            elif focused == SHELF_CONTROLS[0] and self.shelf_offset + 1 < len(self.loaded):
+                self.setFocusId(SHELF_CONTROLS[1])
+            elif focused == SHELF_CONTROLS[1] and self.shelf_offset + 2 < len(self.loaded):
+                self._queue(("scroll", 1, ""), focused)
+        elif key == 3:
+            if focused == SHELF_CONTROLS[1]:
+                self.setFocusId(SHELF_CONTROLS[0])
+            elif focused == SHELF_CONTROLS[0]:
+                if self.shelf_offset > 0:
+                    self._queue(("scroll", -1, ""), focused)
+                else:
+                    self.setFocusId(CONTROL_TABS if self.model["tabs"] else CONTROL_NAV)
+            elif focused == CONTROL_TABS:
+                self.setFocusId(CONTROL_NAV)
+
 
 
 def launch(on_select):
@@ -153,7 +171,8 @@ def launch(on_select):
 
     show() returns to this controller rather than blocking like doModal(). Kodi
     callbacks only enqueue requests; the plugin thread handles IO and dialogs.
-    Only exit, explicit native mode or playback closes the Cinema window.
+    Title dialogs close and release Cinema first; cancel restores its plain data.
+    Catalog navigation and pagination keep the same shell visible.
     """
     path = xbmcaddon.Addon().getAddonInfo("path")
     if not path:
@@ -208,14 +227,33 @@ def launch(on_select):
                 window.render()
                 continue
             if action == "select":
+                # Keep only plain catalog data. Destroy the modal Cinema before
+                # native title/source dialogs or asynchronous Player.Open.
+                saved = (window.model, window.loaded, window.shelf_offset, window.restore_focus)
+                window.close()
+                del window
+                window = None
+                xbmc.log("Felipe Cinema: janela encerrada antes da ficha " + target, xbmc.LOGINFO)
                 try:
                     if on_select(target, extra):
                         return True
                 except (OSError, RuntimeError, TypeError, ValueError, AttributeError) as error:
                     xbmc.log("Felipe Cinema: falha na ficha ({})".format(type(error).__name__), xbmc.LOGERROR)
                     xbmcgui.Dialog().ok("Título indisponível", "Não foi possível abrir a ficha. Escolha outro título.")
-                # Retain both page caches and the selected poster after cancellation.
-                window.render()
+                if monitor.abortRequested():
+                    return True
+                window = CinemaWindow("FelipeCinema.xml", path, "Default", "1080i")
+                window.prepare(saved[0])
+                window.loaded, window.shelf_offset, window.restore_focus = saved[1:]
+                window.show()
+                deadline = monotonic() + 15
+                while not window.ready.is_set():
+                    if monitor.waitForAbort(0.05):
+                        return True
+                    if monotonic() >= deadline:
+                        raise RuntimeError("Cinema restoration timed out")
+                if window.init_error is not None:
+                    raise window.init_error
                 continue
             if action == "page":
                 index, page = target, extra
@@ -227,7 +265,7 @@ def launch(on_select):
                         xbmcgui.Dialog().ok("Página indisponível", "A página anterior foi mantida.")
                     else:
                         window.loaded[index] = new_page
-                        window.restore_focus = (SHELF_CONTROLS[index], 0)
+                        window.restore_focus = (SHELF_CONTROLS[index - window.shelf_offset], 0)
                 except (OSError, ValueError, TypeError, RuntimeError):
                     window.restore_focus = previous_focus
                     xbmcgui.Dialog().ok("Página indisponível", "Tente novamente em instantes.")

@@ -1,3 +1,23 @@
+## Felipe Vídeos 1.7.1 — foco, fileiras e abertura de títulos
+
+- Remove a faixa “SELECIONADO” das capas. Uma borda dourada, contrastante com
+  os botões, aparece apenas no controle com foco real; listas inativas ficam neutras.
+- Navegação vertical tem um único responsável: as rotas XML ficam no próprio
+  controle e o controlador move uma fileira por ação. Entrar na segunda fileira
+  não dispara simultaneamente a rolagem para a terceira.
+- Corrige paginação de fileiras após rolagem: índice global do catálogo é convertido
+  para o controle visível antes de restaurar o foco.
+- A janela Cinema é encerrada e liberada antes da ficha, fontes e reprodução.
+  Ao cancelar, uma nova janela restaura catálogos, páginas, fileira e posição.
+  Navegação de catálogos e próxima página continuam na janela persistente.
+- Mantém todas as funcionalidades 1.7.0 e a configuração atual de visualização.
+
+Validação: 153 testes Python passaram, incluindo foco único, sequência das setas,
+paginação da terceira fileira e Cinema fechado antes de abrir a ficha/player.
+Não foi possível reproduzir o fechamento nativo da TV Box neste ambiente.
+Encerrar a janela antes da ficha elimina a sobreposição; não comprova a causa
+nem substitui a análise de kodi.old.log se o problema persistir.
+
 ## Felipe Vídeos 1.7.0 — Cinema personalizado e maior estabilidade
 
 **Sem Trakt e sem ficha cinematográfica completa**, por escolha do projeto.
