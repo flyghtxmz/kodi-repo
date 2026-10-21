@@ -25,7 +25,7 @@ class PlaybackTracker(xbmc.Player):
         self.last_time = 0.
         self.last_total = 0.
         self.last_write = 0
-        self.resume_applied = False.
+        self.resume_applied = False
 
     def _started(self):
         if self.current:
