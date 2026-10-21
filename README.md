@@ -1,3 +1,12 @@
+## Felipe Vídeos 1.7.4 — correção de travamentos ao selecionar fontes
+
+- O modo seguro agora é o **padrão**: ao selecionar uma fonte, a reprodução é iniciada **dois segundos depois** por um comando agendado do Kodi, sem disparar Player.Open com o popup ainda ativo. Esse atraso é interno, sem baixar torrents ou gerar reproduções extras.
+- A janela Cinema aguarda **350 ms** após ser fechada para que o Android/Kodi libere os callbacks da interface antes de abrir as opções nativas.
+- A seleção de fontes passa a numerar os resultados e exibir, quando houver, o índice real do arquivo; isso diferencia torrents de título semelhante.
+- Retomada automática com seek foi colocada como **experimental/desativada por padrão**, mas o acompanhamento do progresso permanece ativo. Você pode ativá-la manualmente em Configurar → Reprodução — estabilidade.
+- Se o Elementum não reproduzir com o modo seguro, existe o controle **Iniciar após fechar os popups**. Desativá-lo utiliza o comportamento anterior (Player.Open) apenas para fins de compatibilidade.
+- Para identificar um fechamento nativo do Kodi: Ferramentas → Diagnosticar fechamento — última operação; depois verificar o `kodi.old.log` do dispositivo. A nova versão não garante corrigir defeitos do Elementum e do Kodi nativos.
+
 ## Felipe Vídeos 1.7.3 — reversão do fundo de carregamento
 
 Após novo relato de fechamento do Kodi, a reprodução deixa de criar a janela de fundo introduzida na 1.7.2. O carregamento volta ao fundo nativo. Mantém foco/navegação e a remoção da notificação longa. Esta é uma mitigação conservadora, não uma confirmação da causa do crash. O HTTP 403 mostrado nas fotos pertence à consulta do repositório Elementum; a falha fatal ainda precisa de log completo.

@@ -9,6 +9,18 @@
                 </setting>
             </group>
         </category>
+        <category id="playback" label="Reprodução — estabilidade">
+            <group id="1">
+                <setting id="safe_playback_handoff" type="boolean" label="Iniciar após fechar os popups (recomendado no Android)">
+                    <default>true</default>
+                    <control type="toggle"/>
+                </setting>
+                <setting id="playback_auto_resume" type="boolean" label="Retomar posição automaticamente (experimental)">
+                    <default>false</default>
+                    <control type="toggle"/>
+                </setting>
+            </group>
+        </category>
         <category id="catalog_br" label="Catálogos Brasil">
             <group id="1">
                 <setting id="tmdb_api_key" type="string" label="Chave da API TMDb (opcional — disponibilidade no Brasil)">
