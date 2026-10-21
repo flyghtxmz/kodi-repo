@@ -12,39 +12,43 @@ _IMDB = re.compile(r"^tt[0-9]{5,12}$")
 _MAX_FAVORITES = 250
 _MAX_HISTORY = 120
 
-def _path():
+def _path(group):
+    if group not in ("favorites", "history"):
+        raise ValueError("Coleção inválida")
     import xbmcaddon
     import xbmcvfs
     root = Path(xbmcvfs.translatePath(xbmcaddon.Addon().getAddonInfo("profile")))
     root.mkdir(parents=True, exist_ok=True)
-    return root / "felipe_library.json"
+    return root / ("felipe_" + group + ".json")
 
 def _read():
-    try:
-        path = _path()
-        if not path.exists() or path.stat().st_size > 350000:
-            return {"favorites": {}, "history": {}}
-        obj = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(obj, dict):
-            return {"favorites": {}, "history": {}}
-        return {k: obj.get(k) if isinstance(obj.get(k), dict) else {}
-                for k in ("favorites", "history")}
-    except (OSError, ValueError, TypeError, ImportError, AttributeError):
-        return {"favorites": {}, "history": {}}
+    data = {"favorites": {}, "history": {}}
+    for group in data:
+        try:
+            path = _path(group)
+            if path.exists() and path.stat().st_size <= 350000:
+                rows = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(rows, dict):
+                    data[group] = rows
+        except (OSError, ValueError, TypeError, ImportError, AttributeError):
+            pass
+    return data
 
-def _write(data):
+def _write(data, group):
+    if group not in ("favorites", "history"):
+        raise ValueError("Coleção inválida")
     temp = None
     try:
-        path = _path()
-        for group, limit in (("favorites", _MAX_FAVORITES), ("history", _MAX_HISTORY)):
-            items = data.get(group, {})
-            data[group] = dict(sorted(items.items(),
-                key=lambda row: float(row[1].get("updated", 0)) if isinstance(row[1], dict) else 0,
-                reverse=True)[:limit])
+        path = _path(group)
+        limit = _MAX_FAVORITES if group == "favorites" else _MAX_HISTORY
+        items = data.get(group, {})
+        rows = dict(sorted(items.items(),
+            key=lambda row: float(row[1].get("updated", 0)) if isinstance(row[1], dict) else 0,
+            reverse=True)[:limit])
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
                 prefix=".felipe-library-", dir=str(path.parent), delete=False) as f:
             temp = f.name
-            json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+            json.dump(rows, f, ensure_ascii=False, separators=(",", ":"))
         os.replace(temp, path)
     except (OSError, ValueError, TypeError, ImportError, AttributeError):
         if temp:
@@ -78,7 +82,7 @@ def toggle_favorite(identifier, media, title="", poster="", year="", genres=None
             row["updated"] = time.time()
             data["favorites"][key] = row
             selected = True
-        _write(data)
+        _write(data, "favorites")
         return selected
 
 def is_favorite(identifier, media):
@@ -127,7 +131,7 @@ def mark_started(request):
             row["season"] = request.get("season")
             row["episode"] = request.get("episode")
         data["history"][key] = row
-        _write(data)
+        _write(data, "history")
 
 def update_progress(request, seconds, duration, completed=False):
     try:
@@ -147,7 +151,7 @@ def update_progress(request, seconds, duration, completed=False):
             completed=bool(completed or (duration > 120 and ratio >= .92)),
             updated=time.time())
         data["history"][key] = row
-        _write(data)
+        _write(data, "history")
 
 def preferred_genres():
     from collections import Counter
