@@ -36,6 +36,17 @@ test("hash duplicates are removed, explicit PTBR wins",()=>{
   assert.equal(output.sources[0].source,"Torrentio");
   assert.equal(output.sources[1].language,"pt-br");
 });
+test("different explicit file indices in one torrent remain selectable",()=>{
+  const streams=[
+    {infoHash:A,title:"Série S01E01 PT-BR",fileIdx:0},
+    {infoHash:A,title:"Série S01E02 PT-BR",fileIdx:1},
+    {infoHash:A,title:"Genérico sem índice"},
+  ];
+  const result=fromTorrentioPayload({streams});
+  assert.equal(result.stats.unique,2);
+  assert.deepEqual(result.sources.map(x=>x.fileIdx).sort(),[0,1]);
+  assert.equal(mergeSources([],result.sources).length,2);
+});
 test("merge deduplicates existing provider torrents by infohash",()=>{
   const existing=[{source:"Parceiro",url:"magnet:?xt=urn:btih:"+A,
                    title:"Carrie",quality:"SD",language:"unknown"}];
