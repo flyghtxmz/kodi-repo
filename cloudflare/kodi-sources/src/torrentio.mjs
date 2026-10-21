@@ -113,8 +113,9 @@ export function fromTorrentioPayload(payload) {
     };
     valid++;
     if(language==="pt-br") ptBr++;
-    const prior=unique.get(hash);
-    if (!prior || better(src,prior)) unique.set(hash,src);
+    const key=hash+":"+(fileIdx===null?"default":fileIdx);
+    const prior=unique.get(key);
+    if (!prior || better(src,prior)) unique.set(key,src);
   }
   const sources=Array.from(unique.values()).sort((a,b)=>{
     const x=score(a),y=score(b);
@@ -141,7 +142,9 @@ export function mergeSources(existing=[],additional=[]) {
     if(REMOVED.has(normalized(item.source))) continue;
     const uri=item.url || item.magnet;
     const hash=torrentHash(item) || hashFromUri(uri);
-    const key=hash || (typeof uri==="string" && uri.startsWith("https://") ? uri : "");
+    const base=hash || (typeof uri==="string" && uri.startsWith("https://") ? uri : "");
+    const index=Number.isSafeInteger(item.fileIdx) ? item.fileIdx : Number.isSafeInteger(item.file_index) ? item.file_index : null;
+    const key=base ? base+":"+(index===null?"default":index) : "";
     if (!key) continue;
     const prior=map.get(key);
     if (!prior || better(item,prior)) map.set(key,item);
