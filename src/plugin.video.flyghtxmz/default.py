@@ -503,6 +503,10 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
         xbmc.log("Felipe Vídeos: diagnóstico busca de fontes: {:.2f}s, {} resultados, modo={}".format(
             time.monotonic() - started, len(sources),
             "completo" if extended else "rápido"), xbmc.LOGINFO)
+        if not sources and filter_mode != "all" and all_sources:
+            xbmcgui.Dialog().notification("Felipe Vídeos", "Filtro sem resultados; exibindo todas as fontes.", time=2500)
+            sources = list(all_sources)
+            filter_mode = "all"
         if not sources:
             xbmcgui.Dialog().ok(
                 "Nenhuma fonte disponível",
@@ -594,10 +598,18 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
             pass
         try:
             import local_cache
+            from user_library import list_items
+            previous = next((row for row in list_items("history")
+                             if row.get("id") == imdb and row.get("media") == (
+                                 "series" if season is not None else "movie")
+                             and (season is None or (row.get("season") == season
+                                  and row.get("episode") == episode))), {})
             local_cache.put("playback_request", "current", {
                 "at": time.time(), "id": imdb, "media": "series" if season is not None else "movie",
                 "title": display_title or title, "poster": poster, "year": year,
-                "season": season, "episode": episode
+                "season": season, "episode": episode,
+                "resume_seconds": previous.get("position", 0),
+                "resume_duration": previous.get("duration", 0)
             }, ttl=900, max_entries=1)
         except (ImportError, OSError, ValueError, AttributeError, TypeError):
             pass
