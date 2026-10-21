@@ -40,6 +40,18 @@ class PlaybackTracker(xbmc.Player):
         self.current = request
         user_library.mark_started(request)
         _status("video_iniciado")
+        try:
+            resume = float(request.get("resume_seconds") or 0)
+            expected = float(request.get("resume_duration") or 0)
+            duration = float(self.getTotalTime())
+            if (resume > 45 and expected > 120 and duration > 120
+                    and resume < duration * .88 and
+                    abs(duration - expected) <= max(180, expected * .1)):
+                self.seekTime(resume)
+                self.last_time, self.last_total = resume, duration
+                _status("video_retomado")
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
+            pass
 
     def onAVStarted(self):
         self._started()
@@ -62,13 +74,13 @@ class PlaybackTracker(xbmc.Player):
         except (OSError, RuntimeError, ValueError, TypeError):
             pass
 
-    def _stopped(self, ended=False):
+    def _stopped(self, ended=False, failed=False):
         if not self.current:
             return
         self.tick()
         user_library.update_progress(self.current, self.last_time, self.last_total,
             completed=bool(ended and self.last_total > 0 and self.last_time / self.last_total > .8))
-        _status("video_finalizado" if ended else "video_interrompido")
+        _status("falha_player" if failed else "video_finalizado" if ended else "video_interrompido")
         self.current = None
         self.last_time = self.last_total = self.last_write = 0
 
@@ -79,8 +91,10 @@ class PlaybackTracker(xbmc.Player):
         self._stopped(ended=True)
 
     def onPlayBackError(self):
-        _status("falha_player")
-        self._stopped()
+        if self.current:
+            self._stopped(failed=True)
+        else:
+            _status("falha_player")
 
 if __name__ == "__main__":
     monitor = xbmc.Monitor()
