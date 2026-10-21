@@ -1,3 +1,19 @@
+## Felipe Vídeos 1.7.0 — Cinema personalizado e maior estabilidade
+
+**Sem Trakt e sem ficha cinematográfica completa**, por escolha do projeto.
+
+- **Minha lista** permite favoritar filmes e séries no próprio Kodi (sem criar conta).
+- **Continuar assistindo** e **histórico** são preenchidos somente quando o player confirma vídeo iniciado. Um serviço leve guarda posição/duração e tenta retomar com segurança quando a duração bate com a mídia anterior.
+- **Para você** usa gêneros dos favoritos para sugerir novos conteúdos. Nada é enviado para uma conta externa.
+- **Início expandido**: filmes e séries em alta, lançamentos, listas pessoais e imagem de destaque dinâmica. Com ↓ na última fileira aparecem fileiras adicionais mantendo uma única janela Cinema.
+- **Busca avançada** por texto, filmes/séries e ano; cada fileira mantém sua própria paginação.
+- **Fontes**: filtro rápido por PT-BR indicado, resolução 1080p/4K, seeders informados e arquivos de até 3 GB. O filtro não faz nova requisição e volta a todas as opções se não encontrar resultados.
+- **Cloudflare**: o campo `fileIdx` passa a chegar como `file_index` ao Elementum; fontes com o mesmo hash mas índices de arquivo diferentes não são confundidas.
+- **Catálogos BR**: em Configurar → Catálogos Brasil é possível informar **sua chave TMDb**. Com ela, plataformas usam o catálogo oficial TMDb com `watch_region=BR`, por assinatura e dados em PT-BR. Sem chave, o addon mantém a fonte anterior, cuja região pode ser estrangeira. A disponibilidade indicada pelo TMDb pode mudar, não constitui confirmação de assinatura nem de fonte de reprodução.
+- Atualizações do arquivo Worker são **código-fonte**; não reimplantam automaticamente o Worker customizado de produção.
+
+**Validação**: testes automatizados do Kodi/Worker no GitHub. A estabilidade visual e a reprodução reais dependem de testes no Kodi 21/Android TV. Reprodução P2P exige fontes autorizadas e Elementum instalado.
+
 ## Felipe Cinema 1.6.3 — janela contínua durante a navegação
 
 Corrige o intervalo em que o menu nativo aparecia ao trocar de página ou seção.

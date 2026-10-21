@@ -125,6 +125,19 @@ class CloudflareClientTests(unittest.TestCase):
             items = self.client.list_sources("Filme")
         self.assertEqual(len(items), 2)
 
+    def test_distinct_file_indices_for_same_infohash_are_kept(self):
+        h = "f" * 40
+        rows = [
+            {"title": "Episódio 1", "source": "Worker",
+             "url": "magnet:?xt=urn:btih:" + h, "fileIdx": 0},
+            {"title": "Episódio 2", "source": "Worker",
+             "url": "magnet:?xt=urn:btih:" + h, "fileIdx": 1},
+        ]
+        with patch.object(self.requests, "get",
+                          return_value=FakeResponse({"sources": rows})):
+            result = self.client.list_sources("Série")
+        self.assertEqual(sorted(row["file_index"] for row in result), [0, 1])
+
     def test_malformed_response_is_rejected(self):
         with patch.object(self.requests, "get",
                           return_value=FakeResponse({"invalid": []})):

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<addon id="plugin.video.flyghtxmz" name="Felipe Vídeos" version="1.6.3" provider-name="flyghtxmz">
+<addon id="plugin.video.flyghtxmz" name="Felipe Vídeos" version="1.7.0" provider-name="flyghtxmz">
     <requires>
         <import addon="xbmc.python" version="3.0.0" />
         <import addon="script.module.requests" version="2.31.0" />
@@ -7,6 +7,7 @@
     <extension point="xbmc.python.pluginsource" library="default.py">
         <provides>video</provides>
     </extension>
+    <extension point="xbmc.service" library="service.py" start="login" />
     <extension point="xbmc.addon.metadata">
         <summary lang="pt_BR">Felipe Vídeos para Kodi 21: streaming autorizado por magnet e vídeo direto</summary>
         <description lang="pt_BR">Interface fullscreen de streaming com capas e categorias, mantendo o Kodi original; filmes, séries, títulos PT-BR, legendas e fontes P2P.</description>

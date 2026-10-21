@@ -397,7 +397,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(result["items"], [])
         self.assertEqual(len(result["popups"]), 1)
         self.assertEqual(result["popups"][0][1],
-            ["Buscar fontes", "Ver trailer", "Onde assistir no Brasil", "Sinopse e detalhes"])
+            ["Buscar fontes", "☆ Adicionar aos favoritos", "Ver trailer", "Onde assistir no Brasil", "Sinopse e detalhes"])
         self.assertEqual(result["commands"], [])
 
     def test_popup_source_selection_starts_elementum(self):
@@ -444,7 +444,7 @@ class PluginTests(unittest.TestCase):
             "url": "https://media.example.org/video.torrent"
         }]
         result = self.run_addon("recent_detail", query={"identifier": "tt1234567"},
-                                source_items=rows, popup_choices=[0, 3, 0])
+                                source_items=rows, popup_choices=[0, 4, 0])
         self.assertEqual(len(result["popups"]), 3)
         self.assertIn("Dublados/PT-BR", result["popups"][2][0])
         self.assertEqual(len(result["popups"][2][1]), 1)

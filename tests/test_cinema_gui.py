@@ -68,7 +68,10 @@ class CinemaTests(unittest.TestCase):
 
     def test_home_has_platform_shortcuts_and_distinct_media_shelves(self):
         home = catalog.screen()
-        self.assertEqual([x['media'] for x in home['shelves']], ['movie', 'series'])
+        self.assertEqual([x['media'] for x in home['shelves']][:2], ['movie', 'series'])
+        self.assertGreaterEqual(len(home['shelves']), 3)
+        self.assertIn("Minha lista", [label for label, _ in catalog.NAVIGATION])
+        self.assertIn("Continuar", [label for label, _ in catalog.NAVIGATION])
         self.assertEqual([x[0] for x in home['tabs']][:3], ['Netflix', 'Prime Video', 'Apple TV+'])
         platform = catalog.screen('platform', 'atp')
         self.assertTrue(all(x['value'] == 'atp' and x['kind'] == 'platform' for x in platform['shelves']))

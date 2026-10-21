@@ -258,6 +258,12 @@ def detail(identifier, media="movie"):
             break
     value["trailer_id"] = trailer_id
     value["original_title"] = value["title"]
+    genres = meta.get("genres") or []
+    if isinstance(genres, list):
+        value["genres"] = [g.get("name", "") if isinstance(g, dict) else g
+                           for g in genres[:8] if isinstance(g, (str, dict))]
+    else:
+        value["genres"] = []
     if media == "series":
         value["episodes"] = episodes_for_series(meta, identifier)
     try:

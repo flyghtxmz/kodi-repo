@@ -370,6 +370,13 @@ def show_subtitles():
 
 def show_recent_detail(identifier, media, finish_directory=True):
     """Abre popup sem sair do cinema fullscreen ou criar uma pasta."""
+    if isinstance(identifier, str) and identifier.startswith("tmdb:"):
+        try:
+            from tmdb_br import resolve_imdb
+            identifier = resolve_imdb(identifier, media)
+        except (ImportError, ValueError, OSError, RuntimeError):
+            xbmcgui.Dialog().ok("Ficha indisponível", "Não foi possível identificar este título no IMDb.")
+            return False
     from recent import detail
     if finish_directory:
         finish()
@@ -389,6 +396,9 @@ def show_recent_detail(identifier, media, finish_directory=True):
                 options.append(("{} — {} episódio(s)".format(title, len(entries)), ("season", season)))
         else:
             options.append(("Buscar fontes", "sources"))
+        import user_library
+        saved = user_library.is_favorite(identifier, media)
+        options.append(("★ Remover dos favoritos" if saved else "☆ Adicionar aos favoritos", "favorite"))
         if movie.get("trailer_id"):
             options.append(("Ver trailer", "recent_trailer"))
         options.append(("Onde assistir no Brasil", "recent_where"))
@@ -410,12 +420,19 @@ def show_recent_detail(identifier, media, finish_directory=True):
         checkpoint("opcao_selecionada", identifier, media)
         if isinstance(action, tuple) and action[0] == "season":
             return choose_series_episode(movie, action[1])
+        elif action == "favorite":
+            added = user_library.toggle_favorite(identifier, media, movie.get("title", ""),
+                movie.get("poster", ""), movie.get("year", ""), movie.get("genres", []))
+            xbmcgui.Dialog().notification("Felipe Vídeos",
+                "Adicionado à Minha lista" if added else "Removido de Minha lista", time=2500)
+            return False
         elif action == "sources":
             # O ID TMDb não é um identificador IMDb: evite enviá-lo ao Worker.
             return choose_cloudflare_source(movie.get("original_title") or movie["title"],
                                      str(movie.get("year") or "")[:4],
                                      movie.get("imdb_id") or (
-                                         identifier if re.fullmatch(r"tt[0-9]{5,12}", identifier) else ""))
+                                         identifier if re.fullmatch(r"tt[0-9]{5,12}", identifier) else ""),
+                                     display_title=movie.get("title"), poster=movie.get("poster"))
         else:
             result = perform_recent_action(action, movie)
             if result:
@@ -453,22 +470,43 @@ def choose_series_episode(movie, season):
     return choose_cloudflare_source(
         movie.get("original_title") or series_name,
         str(movie.get("year") or "")[:4],
-        imdb, season=season, episode=selected["episode"])
+        imdb, season=season, episode=selected["episode"],
+        display_title=series_name, poster=movie.get("poster", ""))
 
 
-def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None, extended=False):
+def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None, extended=False,
+                            display_title=None, poster="", sources_override=None, filter_mode="all"):
     """Exibe popup de fontes e entrega a escolhida ao Elementum."""
     from source_client import list_sources
     started = time.monotonic()
     try:
-        if season is not None:
-            sources = list_sources(title, year=year, imdb=imdb,
+        if sources_override is not None:
+            all_sources = sources_override
+        elif season is not None:
+            all_sources = list_sources(title, year=year, imdb=imdb,
                                    season=season, episode=episode, quick=not extended)
         else:
-            sources = list_sources(title, year=year, imdb=imdb, quick=not extended)
+            all_sources = list_sources(title, year=year, imdb=imdb, quick=not extended)
+        sources = list(all_sources)
+        if filter_mode == "ptbr":
+            sources = [s for s in sources if s.get("language") in ("pt-br", "ptbr")]
+        elif filter_mode == "1080p":
+            sources = [s for s in sources if s.get("quality") == "1080p"]
+        elif filter_mode == "4K":
+            sources = [s for s in sources if s.get("quality") == "4K"]
+        elif filter_mode == "seeders":
+            sources = [s for s in sources if (s.get("seeders") or 0) > 0]
+        elif filter_mode == "small":
+            sources = [s for s in sources if isinstance(s.get("size"), int)
+                       and 0 < s["size"] <= 3221225472]
+            sources.sort(key=lambda s: s["size"])
         xbmc.log("Felipe Vídeos: diagnóstico busca de fontes: {:.2f}s, {} resultados, modo={}".format(
             time.monotonic() - started, len(sources),
             "completo" if extended else "rápido"), xbmc.LOGINFO)
+        if not sources and filter_mode != "all" and all_sources:
+            xbmcgui.Dialog().notification("Felipe Vídeos", "Filtro sem resultados; exibindo todas as fontes.", time=2500)
+            sources = list(all_sources)
+            filter_mode = "all"
         if not sources:
             xbmcgui.Dialog().ok(
                 "Nenhuma fonte disponível",
@@ -493,6 +531,7 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
         extra_actions = []
         if not extended and imdb:
             extra_actions.append(("🔎 Pesquisar mais fontes de todos os provedores", "extended"))
+        extra_actions.append(("🎛 Filtrar fontes (áudio, resolução, seeders, tamanho)", "filters"))
         dubbed = [source for source in sources if str(source.get("language") or "").lower() in ("pt-br", "ptbr")]
         if dubbed:
             extra_actions.append(("🔊 Mostrar somente dublados/PT-BR indicados ({})".format(len(dubbed)), "dubbed"))
@@ -505,7 +544,19 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
             action = extra_actions[index - len(sources)][1]
             if action == "extended":
                 return choose_cloudflare_source(
-                    title, year=year, imdb=imdb, season=season, episode=episode, extended=True)
+                    title, year=year, imdb=imdb, season=season, episode=episode, extended=True,
+                    display_title=display_title, poster=poster)
+            if action == "filters":
+                names = ["Mostrar todas", "Somente PT-BR indicado", "1080p",
+                         "4K", "Com seeders informados", "Até 3 GB"]
+                modes = ["all", "ptbr", "1080p", "4K", "seeders", "small"]
+                choice = xbmcgui.Dialog().select("Filtrar fontes — " + target, names)
+                if choice is None or choice < 0 or choice >= len(modes):
+                    return
+                return choose_cloudflare_source(title, year=year, imdb=imdb,
+                    season=season, episode=episode, extended=extended,
+                    display_title=display_title, poster=poster,
+                    sources_override=all_sources, filter_mode=modes[choice])
             if action == "dubbed":
                 subset = [
                     next(i for i, source in enumerate(sources) if source is candidate)
@@ -544,6 +595,23 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
                 "request": "preparando",
             }, ttl=172800, max_entries=1)
         except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            pass
+        try:
+            import local_cache
+            from user_library import list_items
+            previous = next((row for row in list_items("history")
+                             if row.get("id") == imdb and row.get("media") == (
+                                 "series" if season is not None else "movie")
+                             and (season is None or (row.get("season") == season
+                                  and row.get("episode") == episode))), {})
+            local_cache.put("playback_request", "current", {
+                "at": time.time(), "id": imdb, "media": "series" if season is not None else "movie",
+                "title": display_title or title, "poster": poster, "year": year,
+                "season": season, "episode": episode,
+                "resume_seconds": previous.get("position", 0),
+                "resume_duration": previous.get("duration", 0)
+            }, ttl=900, max_entries=1)
+        except (ImportError, OSError, ValueError, AttributeError, TypeError):
             pass
         return start_cloudflare_play(selected["url"], file_index=selected.get("file_index"))
     except Exception as error:
@@ -748,7 +816,10 @@ def launch_elementum(uri, file_index=None):
         event = local_cache.get("last_playback", "selected")
         if not isinstance(event, dict):
             event = {}
-        event.update(request="aceito_pelo_kodi", handoff_seconds=round(elapsed, 2))
+        if event.get("request") not in (
+                "video_iniciado", "video_retomado", "video_finalizado", "video_interrompido", "falha_player"):
+            event["request"] = "aceito_pelo_kodi"
+        event["handoff_seconds"] = round(elapsed, 2)
         local_cache.put("last_playback", "selected", event, ttl=172800, max_entries=1)
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass

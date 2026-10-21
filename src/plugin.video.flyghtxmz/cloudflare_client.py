@@ -165,7 +165,11 @@ def list_sources(title, year="", imdb=""):
             seeds = None if item.get("seeders") is None else max(0, int(item["seeders"]))
         except (ValueError, TypeError):
             seeds = None
+        index = item.get("file_index", item.get("fileIdx"))
+        if index is not None and (type(index) is not int or not 0 <= index <= 100000):
+            continue
         candidate = {
+            "file_index": index,
             "title": label,
             "source": str(item.get("source") or item.get("provider") or "Fonte externa")[:80],
             "quality": q,
@@ -175,7 +179,7 @@ def list_sources(title, year="", imdb=""):
             "url": uri,
         }
         hash_value = _torrent_hash(item, uri)
-        dedupe_key = ("hash", hash_value) if hash_value else ("url", uri)
+        dedupe_key = ("hash", hash_value, index) if hash_value else ("url", uri, index)
         previous = unique.get(dedupe_key)
         if previous is None or _source_priority(candidate) > _source_priority(previous):
             unique[dedupe_key] = candidate

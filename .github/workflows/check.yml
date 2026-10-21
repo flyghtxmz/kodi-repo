@@ -16,6 +16,8 @@ jobs:
         run: python tools/build_repo.py
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+      - name: Test Cloudflare Worker adapter
+        run: node --test cloudflare/kodi-sources/test/*.test.mjs
       - name: Validate generated ZIP archives
         run: |
           python - <<'PY'
