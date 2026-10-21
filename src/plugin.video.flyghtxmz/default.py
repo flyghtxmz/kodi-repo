@@ -524,9 +524,11 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
                 audio = "🇵🇹 Português (região não confirmada)"
             else:
                 audio = "❔ Áudio não confirmado"
-            labels.append("{} | {} | {} | {} | Seeds: {} | {}".format(
-                source["title"], source["source"], source["quality"],
-                size_text, seed_text, audio))
+            index_tag = (" | arquivo {}".format(source["file_index"] + 1)
+                         if type(source.get("file_index")) is int else "")
+            labels.append("{:02d}. {} | {} | {} | {} | Seeds: {} | {}{}".format(
+                len(labels) + 1, source["title"], source["source"], source["quality"],
+                size_text, seed_text, audio, index_tag))
         target = "{} S{:02d}E{:02d}".format(title, season, episode) if season is not None else title
         extra_actions = []
         if not extended and imdb:
@@ -569,6 +571,7 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
                     return
                 index = subset[picked]
         selected = sources[index]
+        checkpoint("fonte_selecionada")
         # Se o provedor confirma ausência de seeders, oferecer escolha:
         # peers desconhecidos não são necessariamente zero.
         if selected.get("seeders") == 0:
@@ -789,8 +792,28 @@ def launch_elementum(uri, file_index=None):
                 xbmcgui.Dialog().ok("Elementum desativado",
                                     "Ative o Elementum em Meus addons → Addons de vídeo e tente novamente.")
                 return False
-        # Player.Open envia a URL estruturada, sem o parser de texto de PlayMedia,
-        # e informa se o Kodi recusou o pedido. O Elementum resolve o torrent.
+        # Evitar disparar o Elementum enquanto o diálogo e o script de origem
+        # ainda estão sendo desmontados. Kodi 21/Android pode abortar se uma
+        # operação de vídeo competir com um diálogo ativo.
+        if ADDON.getSetting("safe_playback_handoff").strip().lower() != "false":
+            command = "AlarmClock(FelipeVideosPlayback,PlayMedia({}),00:00:02,silent,false)".format(target)
+            xbmc.executebuiltin("CancelAlarm(FelipeVideosPlayback,silent)")
+            xbmc.executebuiltin(command)
+            checkpoint("reproducao_agendada")
+            xbmc.log("Felipe Vídeos: envio ao Elementum adiado por 2s (oindex={}); início NÃO confirmado".format(
+                file_index), xbmc.LOGINFO)
+            try:
+                import local_cache
+                event = local_cache.get("last_playback", "selected")
+                if not isinstance(event, dict):
+                    event = {}
+                event["request"] = "agendado_2s"
+                event["handoff_seconds"] = 0
+                local_cache.put("last_playback", "selected", event, ttl=172800, max_entries=1)
+            except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+                pass
+            return True
+        # Modo de compatibilidade: chamada imediata estruturada Player.Open.
         response = json.loads(xbmc.executeJSONRPC(json.dumps({
             "jsonrpc": "2.0", "id": 2, "method": "Player.Open",
             "params": {"item": {"file": target}}})))
