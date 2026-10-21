@@ -410,7 +410,7 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(result["commands"], [])
         self.assertEqual(len(result["play_requests"]), 1)
         self.assertIn("plugin.video.elementum/play?uri=", result["play_requests"][0])
-        self.assertEqual(len(result["notifications"]), 1)
+        self.assertEqual(result["notifications"], [])
 
     def test_quick_lookup_shows_more_sources_entry(self):
         result = self.run_addon("recent_detail",

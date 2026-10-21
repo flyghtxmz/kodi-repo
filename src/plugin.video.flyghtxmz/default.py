@@ -613,7 +613,8 @@ def choose_cloudflare_source(title, year="", imdb="", season=None, episode=None,
             }, ttl=900, max_entries=1)
         except (ImportError, OSError, ValueError, AttributeError, TypeError):
             pass
-        return start_cloudflare_play(selected["url"], file_index=selected.get("file_index"))
+        return start_cloudflare_play(selected["url"], file_index=selected.get("file_index"),
+                                     title=display_title or title, poster=poster)
     except Exception as error:
         xbmc.log("Felipe Vídeos: consulta de fontes falhou ({})".format(
             type(error).__name__), xbmc.LOGERROR)
@@ -628,13 +629,18 @@ def show_cloudflare_sources(title, year="", imdb=""):
     choose_cloudflare_source(title, year=year, imdb=imdb)
 
 
-def start_cloudflare_play(url, file_index=None):
+def start_cloudflare_play(url, file_index=None, title="", poster=""):
     """Reproduz somente URI validada pelo cliente no Elementum."""
     from cloudflare_client import is_supported_source
     if not is_supported_source(url):
         xbmcgui.Dialog().ok("Fonte inválida", "O link não é um magnet ou torrent compatível.")
         return
-    return launch_elementum(url, file_index=file_index)
+    try:
+        from playback_backdrop import launch_with_backdrop
+    except (ImportError, AttributeError):
+        return launch_elementum(url, file_index=file_index)
+    return launch_with_backdrop(lambda: launch_elementum(url, file_index=file_index),
+                                title=title, poster=poster)
 
 
 def play_cloudflare_source(url):
@@ -822,14 +828,6 @@ def launch_elementum(uri, file_index=None):
         event["handoff_seconds"] = round(elapsed, 2)
         local_cache.put("last_playback", "selected", event, ttl=172800, max_entries=1)
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        pass
-    try:
-        xbmcgui.Dialog().notification(
-            "Felipe Vídeos",
-            "Pedido recebido pelo Kodi; reprodução não confirmada. "
-            "Se não iniciar, abra Ferramentas > Diagnosticar última reprodução.",
-            time=5000)
-    except (AttributeError, RuntimeError):
         pass
     return True
 
