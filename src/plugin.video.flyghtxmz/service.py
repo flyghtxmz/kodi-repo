@@ -24,7 +24,8 @@ class PlaybackTracker(xbmc.Player):
         self.current = None
         self.last_time = 0.
         self.last_total = 0.
-        self.last_write = 0.
+        self.last_write = 0
+        self.resume_applied = False.
 
     def _started(self):
         if self.current:
@@ -38,14 +39,22 @@ class PlaybackTracker(xbmc.Player):
         except (RuntimeError, OSError):
             return
         self.current = request
+        self.resume_applied = False
         user_library.mark_started(request)
         _status("video_iniciado")
+        self._try_resume()
+
+    def _try_resume(self):
+        if not self.current or self.resume_applied:
+            return
         try:
-            resume = float(request.get("resume_seconds") or 0)
-            expected = float(request.get("resume_duration") or 0)
             duration = float(self.getTotalTime())
-            if (resume > 45 and expected > 120 and duration > 120
-                    and resume < duration * .88 and
+            if duration <= 120:
+                return  # Algumas versões só informam a duração após onAVStarted.
+            resume = float(self.current.get("resume_seconds") or 0)
+            expected = float(self.current.get("resume_duration") or 0)
+            self.resume_applied = True
+            if (resume > 45 and expected > 120 and resume < duration * .88 and
                     abs(duration - expected) <= max(180, expected * .1)):
                 self.seekTime(resume)
                 self.last_time, self.last_total = resume, duration
@@ -62,6 +71,8 @@ class PlaybackTracker(xbmc.Player):
     def tick(self):
         if not self.current:
             self._started()
+        if self.current:
+            self._try_resume()
         if not self.current or time.monotonic() - self.last_write < 15:
             return
         try:
@@ -82,6 +93,7 @@ class PlaybackTracker(xbmc.Player):
             completed=bool(ended and self.last_total > 0 and self.last_time / self.last_total > .8))
         _status("falha_player" if failed else "video_finalizado" if ended else "video_interrompido")
         self.current = None
+        self.resume_applied = False
         self.last_time = self.last_total = self.last_write = 0
 
     def onPlayBackStopped(self):
