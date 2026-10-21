@@ -1,3 +1,10 @@
+## Felipe Vídeos 1.7.2 — fundo de carregamento
+
+- Tela escura com capa e título durante a preparação do Elementum, sem a notificação longa de aceite.
+- Janela de fundo não modal: o progresso e o botão Cancelar continuam nativos, com a aparência da skin instalada.
+- O fundo fecha ao iniciar o vídeo, após desaparecer o progresso, ao voltar ou encerrar o Kodi. Sem progresso detectado, fecha em 30 segundos; limite visual de 20 minutos, sem cancelar o player.
+- Mantém as correções de foco e navegação da 1.7.1. Validação automatizada; requer verificação visual no Kodi da TV.
+
 ## Felipe Vídeos 1.7.1 — foco, fileiras e abertura de títulos
 
 - Remove a faixa “SELECIONADO” das capas. Uma borda dourada, contrastante com
